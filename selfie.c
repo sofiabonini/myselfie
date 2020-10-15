@@ -10195,6 +10195,7 @@ void print_synopsis(char* extras) {
 // -----------------------------------------------------------------
 
 uint64_t selfie(uint64_t extras) {
+  printf1("%s: This is Sofia Bonini's Selfie\n", selfie_name);
   if (number_of_remaining_arguments() == 0)
     return EXITCODE_NOARGUMENTS;
   else {
