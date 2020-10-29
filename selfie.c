@@ -138,6 +138,8 @@ uint64_t string_length(char* s);
 char*    string_copy(char* s);
 void     string_reverse(char* s);
 uint64_t string_compare(char* s, char* t);
+uint64_t set_hex_literal(uint64_t n, uint64_t c, char* s);
+uint64_t check_between(uint64_t c, uint64_t x, uint64_t y);
 
 uint64_t atoi(char* s);
 char*    itoa(uint64_t n, char* s, uint64_t b, uint64_t d, uint64_t a);
@@ -351,6 +353,10 @@ uint64_t is_character_not_double_quote_or_new_line_or_eof();
 
 uint64_t identifier_string_match(uint64_t string_index);
 uint64_t identifier_or_keyword();
+uint64_t instruction();
+uint64_t is_instruction();
+uint64_t is_register();
+uint64_t is_hexliteral();
 
 void get_symbol();
 
@@ -372,30 +378,80 @@ uint64_t SYM_ELSE         = 6;  // else
 uint64_t SYM_VOID         = 7;  // void
 uint64_t SYM_RETURN       = 8;  // return
 uint64_t SYM_WHILE        = 9;  // while
-uint64_t SYM_COMMA        = 10; // ,
-uint64_t SYM_SEMICOLON    = 11; // ;
-uint64_t SYM_LPARENTHESIS = 12; // (
-uint64_t SYM_RPARENTHESIS = 13; // )
-uint64_t SYM_LBRACE       = 14; // {
-uint64_t SYM_RBRACE       = 15; // }
-uint64_t SYM_PLUS         = 16; // +
-uint64_t SYM_MINUS        = 17; // -
-uint64_t SYM_ASTERISK     = 18; // *
-uint64_t SYM_DIVISION     = 19; // /
-uint64_t SYM_REMAINDER    = 20; // %
-uint64_t SYM_ASSIGN       = 21; // =
-uint64_t SYM_EQUALITY     = 22; // ==
-uint64_t SYM_NOTEQ        = 23; // !=
-uint64_t SYM_LT           = 24; // <
-uint64_t SYM_LEQ          = 25; // <=
-uint64_t SYM_GT           = 26; // >
-uint64_t SYM_GEQ          = 27; // >=
+uint64_t SYM_LUI		  = 10; // lui
+uint64_t SYM_ADDI		  = 11; // addi
+uint64_t SYM_LD		      = 12; // ld
+uint64_t SYM_SD		      = 13; // sd
+uint64_t SYM_ADD		  = 14; // add
+uint64_t SYM_SUB		  = 15; // sub
+uint64_t SYM_MUL		  = 16; // mul
+uint64_t SYM_DIVU		  = 17; // divu
+uint64_t SYM_REMU		  = 18; // remu
+uint64_t SYM_SLTU		  = 19; // sltu
+uint64_t SYM_BEQ		  = 20; // beq
+uint64_t SYM_JAL		  = 21; // jal
+uint64_t SYM_JALR		  = 22; // jalr
+uint64_t SYM_ECALL		  = 23; // ecall
+uint64_t SYM_SPACE		  = 24; //  
+uint64_t SYM_COMMA        = 25; // ,
+uint64_t SYM_SEMICOLON    = 26; // ;
+uint64_t SYM_LPARENTHESIS = 27; // (
+uint64_t SYM_RPARENTHESIS = 28; // )
+uint64_t SYM_LBRACE       = 29; // {
+uint64_t SYM_RBRACE       = 30; // }
+uint64_t SYM_PLUS         = 31; // +
+uint64_t SYM_MINUS        = 32; // -
+uint64_t SYM_ASTERISK     = 33; // *
+uint64_t SYM_DIVISION     = 34; // /
+uint64_t SYM_REMAINDER    = 35; // %
+uint64_t SYM_ASSIGN       = 36; // =
+uint64_t SYM_EQUALITY     = 37; // ==
+uint64_t SYM_NOTEQ        = 38; // !=
+uint64_t SYM_LT           = 39; // <
+uint64_t SYM_LEQ          = 40; // <=
+uint64_t SYM_GT           = 41; // >
+uint64_t SYM_GEQ          = 42; // >=
 
 // symbols for bootstrapping
 
-uint64_t SYM_INT      = 28; // int
-uint64_t SYM_CHAR     = 29; // char
-uint64_t SYM_UNSIGNED = 30; // unsigned
+uint64_t SYM_INT      = 43; // int
+uint64_t SYM_CHAR     = 44; // char
+uint64_t SYM_UNSIGNED = 45; // unsigned
+
+// 32 general-purpose 64-bit registers
+
+uint64_t SYM_ZERO	  = 46; // zero
+uint64_t SYM_RA	 	  = 47; // ra
+uint64_t SYM_SP 	  = 48; // sp
+uint64_t SYM_GP 	  = 49; // gp
+uint64_t SYM_TP 	  = 50; // tp
+uint64_t SYM_T0 	  = 51; // t0
+uint64_t SYM_T1 	  = 52; // t1
+uint64_t SYM_T2 	  = 53; // t2
+uint64_t SYM_S0	      = 54; // s0
+uint64_t SYM_S1 	  = 55; // s1
+uint64_t SYM_A0 	  = 56; // a0
+uint64_t SYM_A1 	  = 57; // a1
+uint64_t SYM_A2 	  = 58; // a2
+uint64_t SYM_A3 	  = 59; // a3
+uint64_t SYM_A4 	  = 60; // a4
+uint64_t SYM_A5 	  = 61; // a5
+uint64_t SYM_A6 	  = 62; // a6
+uint64_t SYM_A7 	  = 63; // a7
+uint64_t SYM_S2 	  = 64; // s2
+uint64_t SYM_S3 	  = 65; // s3
+uint64_t SYM_S4 	  = 66; // s4
+uint64_t SYM_S5 	  = 67; // s5
+uint64_t SYM_S6 	  = 68; // s6
+uint64_t SYM_S7		  = 69; // s7
+uint64_t SYM_S8 	  = 70; // s8
+uint64_t SYM_S9 	  = 71; // s9
+uint64_t SYM_S10 	  = 72; // s10
+uint64_t SYM_S11	  = 73; // s11
+uint64_t SYM_T3 	  = 74; // t3
+uint64_t SYM_T4 	  = 75; // t4
+uint64_t SYM_T5 	  = 76; // t5
+uint64_t SYM_T6 	  = 77; // t6
 
 uint64_t* SYMBOLS; // strings representing symbols
 
@@ -443,6 +499,21 @@ void init_scanner () {
   *(SYMBOLS + SYM_VOID)         = (uint64_t) "void";
   *(SYMBOLS + SYM_RETURN)       = (uint64_t) "return";
   *(SYMBOLS + SYM_WHILE)        = (uint64_t) "while";
+  *(SYMBOLS + SYM_LUI)			= (uint64_t) "lui";
+  *(SYMBOLS + SYM_ADDI)			= (uint64_t) "addi";
+  *(SYMBOLS + SYM_LD)			= (uint64_t) "ld";
+  *(SYMBOLS + SYM_SD)			= (uint64_t) "sd";
+  *(SYMBOLS + SYM_ADD)			= (uint64_t) "add";
+  *(SYMBOLS + SYM_SUB)			= (uint64_t) "sub";
+  *(SYMBOLS + SYM_MUL)			= (uint64_t) "mul";
+  *(SYMBOLS + SYM_DIVU)			= (uint64_t) "divu";
+  *(SYMBOLS + SYM_REMU)			= (uint64_t) "remu";
+  *(SYMBOLS + SYM_SLTU)			= (uint64_t) "sltu";
+  *(SYMBOLS + SYM_BEQ)			= (uint64_t) "beq";
+  *(SYMBOLS + SYM_JAL)			= (uint64_t) "jal";
+  *(SYMBOLS + SYM_JALR)			= (uint64_t) "jalr";
+  *(SYMBOLS + SYM_ECALL)		= (uint64_t) "ecall";
+  *(SYMBOLS + SYM_SPACE)		= (uint64_t) " ";
   *(SYMBOLS + SYM_COMMA)        = (uint64_t) ",";
   *(SYMBOLS + SYM_SEMICOLON)    = (uint64_t) ";";
   *(SYMBOLS + SYM_LPARENTHESIS) = (uint64_t) "(";
@@ -465,6 +536,39 @@ void init_scanner () {
   *(SYMBOLS + SYM_INT)      = (uint64_t) "int";
   *(SYMBOLS + SYM_CHAR)     = (uint64_t) "char";
   *(SYMBOLS + SYM_UNSIGNED) = (uint64_t) "unsigned";
+  
+  *(SYMBOLS + SYM_ZERO)		= (uint64_t) "zero";
+  *(SYMBOLS + SYM_RA)		= (uint64_t) "ra";
+  *(SYMBOLS + SYM_SP)		= (uint64_t) "sp";
+  *(SYMBOLS + SYM_GP)		= (uint64_t) "gp";
+  *(SYMBOLS + SYM_TP)		= (uint64_t) "tp";
+  *(SYMBOLS + SYM_T0)		= (uint64_t) "t0";
+  *(SYMBOLS + SYM_T1)		= (uint64_t) "t1";
+  *(SYMBOLS + SYM_T2)		= (uint64_t) "t2";
+  *(SYMBOLS + SYM_S0)		= (uint64_t) "s0";
+  *(SYMBOLS + SYM_S1)		= (uint64_t) "s1";
+  *(SYMBOLS + SYM_A0)		= (uint64_t) "a0";
+  *(SYMBOLS + SYM_A1)		= (uint64_t) "a1";
+  *(SYMBOLS + SYM_A2)		= (uint64_t) "a2";
+  *(SYMBOLS + SYM_A3)		= (uint64_t) "a3";
+  *(SYMBOLS + SYM_A4)		= (uint64_t) "a4";
+  *(SYMBOLS + SYM_A5)		= (uint64_t) "a5";
+  *(SYMBOLS + SYM_A6)		= (uint64_t) "a6";
+  *(SYMBOLS + SYM_A7)		= (uint64_t) "a7";
+  *(SYMBOLS + SYM_S2)		= (uint64_t) "s2";
+  *(SYMBOLS + SYM_S3)		= (uint64_t) "s3";
+  *(SYMBOLS + SYM_S4)		= (uint64_t) "s4";
+  *(SYMBOLS + SYM_S5)		= (uint64_t) "s5";
+  *(SYMBOLS + SYM_S6)		= (uint64_t) "s6";
+  *(SYMBOLS + SYM_S7)		= (uint64_t) "s7";
+  *(SYMBOLS + SYM_S8)		= (uint64_t) "s8";
+  *(SYMBOLS + SYM_S9)		= (uint64_t) "s9";
+  *(SYMBOLS + SYM_S10)		= (uint64_t) "s10";
+  *(SYMBOLS + SYM_S11)		= (uint64_t) "s11";
+  *(SYMBOLS + SYM_T3)		= (uint64_t) "t3";
+  *(SYMBOLS + SYM_T4)		= (uint64_t) "t4";
+  *(SYMBOLS + SYM_T5)		= (uint64_t) "t5";
+  *(SYMBOLS + SYM_T6)		= (uint64_t) "t6";
 
   character = CHAR_EOF;
   symbol    = SYM_EOF;
@@ -595,6 +699,7 @@ uint64_t is_int_or_char_literal();
 uint64_t is_mult_or_div_or_rem();
 uint64_t is_plus_or_minus();
 uint64_t is_comparison();
+uint64_t look_for_instruction();
 
 uint64_t look_for_factor();
 uint64_t look_for_statement();
@@ -640,6 +745,7 @@ void     compile_variable(uint64_t offset);
 uint64_t compile_initialization(uint64_t type);
 void     compile_procedure(char* procedure, uint64_t type);
 void     compile_cstar();
+void	 compile_instruction();
 
 // ------------------------ GLOBAL VARIABLES -----------------------
 
@@ -686,6 +792,12 @@ void emit_bootstrapping();
 // -----------------------------------------------------------------
 
 void selfie_compile();
+
+// -----------------------------------------------------------------
+// --------------------------- ASSEMBLER ----------------------------
+// -----------------------------------------------------------------
+
+void selfie_assembler();
 
 // *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~
 // -----------------------------------------------------------------
@@ -2222,10 +2334,118 @@ uint64_t string_compare(char* s, char* t) {
       return 0;
 }
 
+uint64_t set_hex_literal(uint64_t n, uint64_t c, char* s){
+  
+  // use base 16 but detect wrap around
+  if (n < UINT64_MAX / 16)
+    n = n * 16 + c;
+  else if (n == UINT64_MAX / 16)
+    if (c <= UINT64_MAX % 16)
+      n = n * 16 + c;
+    else {
+      // s contains a hexadecimal number larger than UINT64_MAX
+      printf2("%s: cannot convert out-of-bound number %s\n", selfie_name, s);
+
+      exit(EXITCODE_BADARGUMENTS);
+    }
+  else {
+      // s contains a hexadecimal number larger than UINT64_MAX
+      printf2("%s: cannot convert out-of-bound number %s\n", selfie_name, s);
+
+      exit(EXITCODE_BADARGUMENTS);
+  }
+
+  return n;
+}
+
+uint64_t check_between(uint64_t c, uint64_t x, uint64_t y){
+
+  //see if x <= c <= y
+  if(c >= x)
+    if(c <= y)
+      return 1;
+
+  return 0;
+}
+
 uint64_t atoi(char* s) {
   uint64_t i;
   uint64_t n;
   uint64_t c;
+  uint64_t contains;
+
+  // the conversion of the ASCII string in s to its
+  // numerical value n begins with the leftmost digit in s
+  i = 0;
+
+  // and the numerical value 0 for n
+  n = 0;
+
+  // load character (one byte) at index i in s from memory requires
+  // bit shifting since memory access can only be done in double words
+  c = load_character(s, i);
+
+  //see if the leftmost digit of s is '0'
+  if(c == '0'){
+
+    //increase i to load the next character into c
+    i = i + 1;
+    c = load_character(s, i);
+
+    //see if the second char is 'x'
+    //hex-literals begin with 0x
+    if(c == 'x'){
+
+      // loop until s is terminated
+      while (c != 0) {
+
+        //see if char is between 'a'(97) and 'f'(102)
+        contains = check_between(c, 97, 102);
+
+        if(contains == 1){
+
+          // the numerical value of ASCII-encoded 'a' is 97
+          //it should become 10 in hexadecimal
+          c = c - 87;
+
+          n = set_hex_literal(n, c, s);
+        }
+
+        //see if char is between 'A'(65) and 'F'(70)
+        contains = check_between(c, 65, 70);
+
+        if(contains == 1){
+
+          // the numerical value of ASCII-encoded 'A' is 65
+          //it should become 10 in hexadecimal
+          c = c - 55;
+
+          n = set_hex_literal(n, c, s);
+        }
+
+        //see if char is between '0'(48) and '9'(59)
+        contains = check_between(c, 48, 59);
+
+        if(contains == 1){
+
+          // the numerical value of ASCII-encoded '0' is 48
+          //it should become 0
+          c = c - 48;
+
+          n = set_hex_literal(n, c, s);
+        }
+
+        // go to the next digit
+        i = i + 1;
+
+        // load character (one byte) at index i in s from memory requires
+        // bit shifting since memory access can only be done in double words
+        c = load_character(s, i);
+      }
+
+      return n;
+    }
+  }
 
   // the conversion of the ASCII string in s to its
   // numerical value n begins with the leftmost digit in s
@@ -3056,6 +3276,208 @@ uint64_t identifier_or_keyword() {
     return SYM_IDENTIFIER;
 }
 
+uint64_t instruction() {
+  if (identifier_string_match(SYM_LUI))
+    return SYM_LUI;
+  else if (identifier_string_match(SYM_ADDI))
+    return SYM_ADDI;
+  else if (identifier_string_match(SYM_LD))
+    return SYM_LD;
+  else if (identifier_string_match(SYM_SD))
+    return SYM_SD;
+  else if (identifier_string_match(SYM_ADD))
+    return SYM_ADD;
+  else if (identifier_string_match(SYM_SUB))
+    return SYM_SUB;
+  else if (identifier_string_match(SYM_MUL))
+    return SYM_MUL;
+  else if (identifier_string_match(SYM_DIVU))
+    return SYM_DIVU;
+  else if (identifier_string_match(SYM_REMU))
+    return SYM_REMU;
+  else if (identifier_string_match(SYM_SLTU))
+    return SYM_SLTU;
+  else if (identifier_string_match(SYM_BEQ))
+    return SYM_BEQ;
+  else if (identifier_string_match(SYM_JAL))
+    return SYM_JAL;
+  else if (identifier_string_match(SYM_JALR))
+    return SYM_JALR;
+  else if (identifier_string_match(SYM_ECALL))
+    return SYM_ECALL;
+  else
+    return SYM_IDENTIFIER;
+}
+
+uint64_t is_instruction() {
+  if (identifier_string_match(SYM_LUI))
+    return 1;
+  else if (identifier_string_match(SYM_ADDI))
+    return 1;
+  else if (identifier_string_match(SYM_LD))
+    return 1;
+  else if (identifier_string_match(SYM_SD))
+    return 1;
+  else if (identifier_string_match(SYM_ADD))
+    return 1;
+  else if (identifier_string_match(SYM_SUB))
+    return 1;
+  else if (identifier_string_match(SYM_MUL))
+    return 1;
+  else if (identifier_string_match(SYM_DIVU))
+    return 1;
+  else if (identifier_string_match(SYM_REMU))
+    return 1;
+  else if (identifier_string_match(SYM_SLTU))
+    return 1;
+  else if (identifier_string_match(SYM_BEQ))
+    return 1;
+  else if (identifier_string_match(SYM_JAL))
+    return 1;
+  else if (identifier_string_match(SYM_JALR))
+    return 1;
+  else if (identifier_string_match(SYM_ECALL))
+    return 1;
+  else
+    return 0;
+}
+
+uint64_t is_hexliteral() {
+	uint64_t i;
+    uint64_t c;
+    uint64_t contains;
+	
+	i = 0;
+	c = load_character((char*) symbol, i);
+
+	//see if the leftmost digit of s is '0'
+	if(c == '0'){
+
+	  //increase i to load the next character into c
+	  i = i + 1;
+	  c = load_character((char*) symbol, i);
+
+	  //hex-literals begin with 0x
+	  if(c == 'x'){
+
+		// loop until s is terminated
+		while (c != 0) {
+
+			//see if char is between 'a'(97) and 'f'(102)
+			contains = check_between(c, 97, 102);
+
+			if(contains == 1){
+
+				// the numerical value of ASCII-encoded 'a' is 97
+				//it should become 10 in hexadecimal
+				c = c - 87;
+				return 1;
+			}
+
+			//see if char is between 'A'(65) and 'F'(70)
+			contains = check_between(c, 65, 70);
+
+			if(contains == 1){
+
+				// the numerical value of ASCII-encoded 'A' is 65
+				//it should become 10 in hexadecimal
+				c = c - 55;
+				return 1;
+			}
+
+			//see if char is between '0'(48) and '9'(59)
+			contains = check_between(c, 48, 59);
+
+			if(contains == 1){
+
+				// the numerical value of ASCII-encoded '0' is 48
+				//it should become 0
+				c = c - 48;
+				return 1;
+			}
+
+			// go to the next digit
+			i = i + 1;
+
+			// load character (one byte) at index i in s from memory requires
+			// bit shifting since memory access can only be done in double words
+			c = load_character((char*) symbol, i);
+		}
+	  }
+    }
+	
+	return 0;
+}
+
+uint64_t is_register() {
+	if (symbol == SYM_ZERO)
+		return 1;
+	else if (symbol == SYM_RA)
+		return 1;
+	else if (symbol == SYM_SP)
+		return 1;
+	else if (symbol == SYM_GP)
+		return 1;
+	else if (symbol == SYM_TP)
+		return 1;
+	else if (symbol == SYM_T0)
+		return 1;
+	else if (symbol == SYM_T1)
+		return 1;
+	else if (symbol == SYM_T2)
+		return 1;
+	else if (symbol == SYM_S0)
+		return 1;
+	else if (symbol == SYM_S1)
+		return 1;
+	else if (symbol == SYM_A0)
+		return 1;
+	else if (symbol == SYM_A1)
+		return 1;
+	else if (symbol == SYM_A2)
+		return 1;
+	else if (symbol == SYM_A3)
+		return 1;
+	else if (symbol == SYM_A4)
+		return 1;
+	else if (symbol == SYM_A5)
+		return 1;
+	else if (symbol == SYM_A6)
+		return 1;
+	else if (symbol == SYM_A7)
+		return 1;
+	else if (symbol == SYM_S2)
+		return 1;
+	else if (symbol == SYM_S3)
+		return 1;
+	else if (symbol == SYM_S4)
+		return 1;
+	else if (symbol == SYM_S5)
+		return 1;
+	else if (symbol == SYM_S6)
+		return 1;
+	else if (symbol == SYM_S7)
+		return 1;
+	else if (symbol == SYM_S8)
+		return 1;
+	else if (symbol == SYM_S9)
+		return 1;
+	else if (symbol == SYM_S10)
+		return 1;
+	else if (symbol == SYM_S11)
+		return 1;
+	else if (symbol == SYM_T3)
+		return 1;
+	else if (symbol == SYM_T4)
+		return 1;
+	else if (symbol == SYM_T5)
+		return 1;
+	else if (symbol == SYM_T6)
+		return 1;
+	else 
+		return 0;
+}
+
 void get_symbol() {
   uint64_t i;
 
@@ -3088,7 +3510,11 @@ void get_symbol() {
 
         store_character(identifier, i, 0); // null-terminated string
 
-        symbol = identifier_or_keyword();
+		if (is_instruction()) {
+			symbol = instruction();
+		} else {
+			symbol = identifier_or_keyword();
+		}
 
       } else if (is_character_digit()) {
         // accommodate integer and null for termination
@@ -3533,6 +3959,39 @@ uint64_t is_comparison() {
   else if (symbol == SYM_LEQ)
     return 1;
   else if (symbol == SYM_GEQ)
+    return 1;
+  else
+    return 0;
+}
+
+uint64_t look_for_instruction() {
+  if (symbol == SYM_LUI)
+    return 1;
+  else if (symbol == SYM_ADDI)
+    return 1;
+  else if (symbol == SYM_LD)
+    return 1;
+  else if (symbol == SYM_SD)
+    return 1;
+  else if (symbol == SYM_ADD)
+    return 1;
+  else if (symbol == SYM_SUB)
+    return 1;
+  else if (symbol == SYM_MUL)
+    return 1;
+  else if (symbol == SYM_DIVU)
+    return 1;
+  else if (symbol == SYM_REMU)
+    return 1;
+  else if (symbol == SYM_SLTU)
+    return 1;
+  else if (symbol == SYM_BEQ)
+    return 1;
+  else if (symbol == SYM_JAL)
+    return 1;
+  else if (symbol == SYM_JALR)
+    return 1;
+  else if (symbol == SYM_ECALL)
     return 1;
   else
     return 0;
@@ -5013,7 +5472,10 @@ void compile_cstar() {
         compile_procedure(variable_or_procedure_name, type);
       } else
         syntax_error_symbol(SYM_IDENTIFIER);
-    } else {
+    } /*else if (look_for_instruction()) {
+		compile_instruction();
+		
+	}*/ else {
       type = compile_type();
 
       if (symbol == SYM_IDENTIFIER) {
@@ -5055,6 +5517,650 @@ void compile_cstar() {
         syntax_error_symbol(SYM_IDENTIFIER);
     }
   }
+}
+
+void compile_instruction() {
+	/*while (look_for_instruction()) {
+    syntax_error_unexpected();
+
+    if (symbol == SYM_EOF)
+      exit(EXITCODE_PARSERERROR);
+    else
+      get_symbol();
+  }
+  
+  if (symbol == SYM_LUI) {
+	  get_symbol();
+	  
+	  if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_hexliteral()) {
+			  
+			} else {
+			  syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+			}
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+	      exit(EXITCODE_PARSERERROR);
+        }
+	  } else {
+        syntax_error_symbol(SYM_SPACE);
+
+        exit(EXITCODE_PARSERERROR);
+      }
+  } else if (symbol == SYM_ADDI) {
+	get_symbol();
+	
+	if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_register()) {
+			  get_symbol();
+			
+				if (is_hexliteral()) {
+				  
+				} else {
+				  syntax_error_unexpected();
+			  
+			      exit(EXITCODE_PARSERERROR);
+				}
+			} else {
+              syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+            }
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+		  exit(EXITCODE_PARSERERROR);
+        }
+	  } else {
+        syntax_error_symbol(SYM_SPACE);
+
+        exit(EXITCODE_PARSERERROR);
+      }
+  } else if (symbol == SYM_LD) {
+	  get_symbol();
+	  
+	  if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_hexliteral()) {
+			  get_symbol();
+			  
+			  if (symbol == SYM_LPARENTHESIS) {
+				  get_symbol();
+				  
+				  if (is_register()) {
+					  get_symbol();
+					  
+					  if (symbol == SYM_RPARENTHESIS) {
+
+					  } else {
+						syntax_error_symbol(SYM_RPARENTHESIS);
+				
+						exit(EXITCODE_PARSERERROR); 
+					  }
+				  } else {
+					syntax_error_unexpected();
+				
+				    exit(EXITCODE_PARSERERROR); 
+				  }
+			  } else {
+				syntax_error_symbol(SYM_LPARENTHESIS);
+				
+				exit(EXITCODE_PARSERERROR);
+			  }
+			} else {
+			  syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+			}
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+	      exit(EXITCODE_PARSERERROR);
+        }
+	  } else {
+        syntax_error_symbol(SYM_SPACE);
+
+        exit(EXITCODE_PARSERERROR);
+      }
+  } else if (symbol == SYM_SD) {
+	  get_symbol();
+	  
+	  if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_hexliteral()) {
+			  get_symbol();
+			  
+			  if (symbol == SYM_LPARENTHESIS) {
+				  get_symbol();
+				  
+				  if (is_register()) {
+					  get_symbol();
+					  
+					  if (symbol == SYM_RPARENTHESIS) {
+						 
+					  } else {
+						syntax_error_symbol(SYM_RPARENTHESIS);
+				
+						exit(EXITCODE_PARSERERROR); 
+					  }
+				  } else {
+					syntax_error_unexpected();
+				
+				    exit(EXITCODE_PARSERERROR); 
+				  }
+			  } else {
+				syntax_error_symbol(SYM_LPARENTHESIS);
+				
+				exit(EXITCODE_PARSERERROR);
+			  }
+			} else {
+			  syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+			}
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+	      exit(EXITCODE_PARSERERROR);
+        }
+	  } else {
+        syntax_error_symbol(SYM_SPACE);
+
+        exit(EXITCODE_PARSERERROR);
+      }
+  } else if (symbol == SYM_ADD) {
+	get_symbol();
+	
+	if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_register()) {
+			  get_symbol();
+			
+				if (symbol == SYM_COMMA) {
+				  get_symbol();
+				  
+				  if (is_register()) {
+					  
+				  } else {
+					syntax_error_unexpected();
+			  
+					exit(EXITCODE_PARSERERROR);
+				  }
+				} else {
+				  syntax_error_symbol(SYM_COMMA);
+
+				  exit(EXITCODE_PARSERERROR);
+				}
+			} else {
+              syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+            }
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+		  exit(EXITCODE_PARSERERROR);
+        }
+	  } else {
+        syntax_error_symbol(SYM_SPACE);
+
+        exit(EXITCODE_PARSERERROR);
+      }
+  } else if (symbol == SYM_SUB) {
+	get_symbol();
+	
+	if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_register()) {
+			  get_symbol();
+			
+				if (symbol == SYM_COMMA) {
+				  get_symbol();
+				  
+				  if (is_register()) {
+					  
+				  } else {
+					syntax_error_unexpected();
+			  
+					exit(EXITCODE_PARSERERROR);
+				  }
+				} else {
+				  syntax_error_symbol(SYM_COMMA);
+
+				  exit(EXITCODE_PARSERERROR);
+				}
+			} else {
+              syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+            }
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+		  exit(EXITCODE_PARSERERROR);
+        }
+	  } else {
+        syntax_error_symbol(SYM_SPACE);
+
+        exit(EXITCODE_PARSERERROR);
+      }
+  } else if (symbol == SYM_MUL) {
+	get_symbol();
+	
+	if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_register()) {
+			  get_symbol();
+			
+				if (symbol == SYM_COMMA) {
+				  get_symbol();
+				  
+				  if (is_register()) {
+					  
+				  } else {
+					syntax_error_unexpected();
+			  
+					exit(EXITCODE_PARSERERROR);
+				  }
+				} else {
+				  syntax_error_symbol(SYM_COMMA);
+
+				  exit(EXITCODE_PARSERERROR);
+				}
+			} else {
+              syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+            }
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+		  exit(EXITCODE_PARSERERROR);
+        }
+	  } else {
+        syntax_error_symbol(SYM_SPACE);
+
+        exit(EXITCODE_PARSERERROR);
+      }
+  } else if (symbol == SYM_DIVU) {
+	get_symbol();
+	
+	if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_register()) {
+			  get_symbol();
+			
+				if (symbol == SYM_COMMA) {
+				  get_symbol();
+				  
+				  if (is_register()) {
+					  
+				  } else {
+					syntax_error_unexpected();
+			  
+					exit(EXITCODE_PARSERERROR);
+				  }
+				} else {
+				  syntax_error_symbol(SYM_COMMA);
+
+				  exit(EXITCODE_PARSERERROR);
+				}
+			} else {
+              syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+            }
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+		  exit(EXITCODE_PARSERERROR);
+        }
+	  } else {
+        syntax_error_symbol(SYM_SPACE);
+
+        exit(EXITCODE_PARSERERROR);
+      }
+  } else if (symbol == SYM_REMU) {
+	get_symbol();
+	
+	if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_register()) {
+			  get_symbol();
+			
+				if (symbol == SYM_COMMA) {
+				  get_symbol();
+				  
+				  if (is_register()) {
+					  
+				  } else {
+					syntax_error_unexpected();
+			  
+					exit(EXITCODE_PARSERERROR);
+				  }
+				} else {
+				  syntax_error_symbol(SYM_COMMA);
+
+				  exit(EXITCODE_PARSERERROR);
+				}
+			} else {
+              syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+            }
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+		  exit(EXITCODE_PARSERERROR);
+        }
+	  } else {
+        syntax_error_symbol(SYM_SPACE);
+
+        exit(EXITCODE_PARSERERROR);
+      }
+  } else if (symbol == SYM_SLTU) {
+	get_symbol();
+	
+	if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_register()) {
+			  get_symbol();
+			
+				if (symbol == SYM_COMMA) {
+				  get_symbol();
+				  
+				  if (is_register()) {
+					  
+				  } else {
+					syntax_error_unexpected();
+			  
+					exit(EXITCODE_PARSERERROR);
+				  }
+				} else {
+				  syntax_error_symbol(SYM_COMMA);
+
+				  exit(EXITCODE_PARSERERROR);
+				}
+			} else {
+              syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+            }
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+		  exit(EXITCODE_PARSERERROR);
+        }
+	  } else {
+        syntax_error_symbol(SYM_SPACE);
+
+        exit(EXITCODE_PARSERERROR);
+      }
+  } else if (symbol == SYM_BEQ) {
+	get_symbol();
+	
+	if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_register()) {
+			  get_symbol();
+			
+				if (is_hexliteral()) {
+				  
+				} else {
+				  syntax_error_unexpected();
+			  
+			      exit(EXITCODE_PARSERERROR);
+				}
+			} else {
+              syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+            }
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+		  exit(EXITCODE_PARSERERROR);
+        }
+	  } else {
+        syntax_error_symbol(SYM_SPACE);
+
+        exit(EXITCODE_PARSERERROR);
+      }
+  } else if (symbol == SYM_JAL) {
+	get_symbol();
+	  
+	if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_hexliteral()) {
+			  
+			} else {
+			  syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+			}
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+	      exit(EXITCODE_PARSERERROR);
+        }
+	} else {
+      syntax_error_symbol(SYM_SPACE);
+
+      exit(EXITCODE_PARSERERROR);
+    }
+  } else if (symbol == SYM_LD) {
+	  get_symbol();
+	  
+	  if (symbol == SYM_SPACE) {
+		get_symbol();
+		
+		if (is_register()) {
+		  get_symbol();
+		  
+		  if (symbol == SYM_COMMA) {
+			get_symbol();
+			
+			if (is_hexliteral()) {
+			  get_symbol();
+			  
+			  if (symbol == SYM_LPARENTHESIS) {
+				  get_symbol();
+				  
+				  if (is_register()) {
+					  get_symbol();
+					  
+					  if (symbol == SYM_RPARENTHESIS) {
+						 
+					  } else {
+						syntax_error_symbol(SYM_RPARENTHESIS);
+				
+						exit(EXITCODE_PARSERERROR); 
+					  }
+				  } else {
+					syntax_error_unexpected();
+				
+				    exit(EXITCODE_PARSERERROR); 
+				  }
+			  } else {
+				syntax_error_symbol(SYM_LPARENTHESIS);
+				
+				exit(EXITCODE_PARSERERROR);
+			  }
+			} else {
+			  syntax_error_unexpected();
+			  
+			  exit(EXITCODE_PARSERERROR);
+			}
+		  } else {
+            syntax_error_symbol(SYM_COMMA);
+
+            exit(EXITCODE_PARSERERROR);
+          }
+		} else {
+          syntax_error_unexpected();
+			  
+	      exit(EXITCODE_PARSERERROR);
+        }
+	  } else {
+        syntax_error_symbol(SYM_SPACE);
+
+        exit(EXITCODE_PARSERERROR);
+      }
+  } else if (symbol == SYM_ECALL) {
+	get_symbol();
+	  
+  } else {
+	exit(EXITCODE_PARSERERROR);
+  }*/
 }
 
 // -----------------------------------------------------------------
@@ -5351,6 +6457,13 @@ void selfie_compile() {
     (char*) (binary_length - code_length));
 
   print_instruction_counters();
+}
+
+// -----------------------------------------------------------------
+// --------------------------- ASSEMBLER ----------------------------
+// -----------------------------------------------------------------
+
+void selfie_assembler(){
 }
 
 // *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~
@@ -10222,6 +11335,8 @@ uint64_t selfie(uint64_t extras) {
         selfie_disassemble(0);
       else if (string_compare(argument, "-S"))
         selfie_disassemble(1);
+	  else if (string_compare(argument, "-a"))
+        selfie_disassemble(2);
       else if (string_compare(argument, "-l"))
         selfie_load();
       else if (extras == 0) {
