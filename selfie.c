@@ -3380,51 +3380,36 @@ uint64_t get_register() {
 }
 
 uint64_t is_instruction() {
-  if (identifier_string_match(SYM_LUI)) {
+  if (identifier_string_match(SYM_LUI))
 	return 1;
-  }
-  else if (identifier_string_match(SYM_ADDI)) {
+  else if (identifier_string_match(SYM_ADDI))
     return 1;
-  }
-  else if (identifier_string_match(SYM_LD)) {
+  else if (identifier_string_match(SYM_LD))
     return 1;
-  }
-  else if (identifier_string_match(SYM_SD)) {
+  else if (identifier_string_match(SYM_SD))
     return 1;
-  }
-  else if (identifier_string_match(SYM_ADD)) {
+  else if (identifier_string_match(SYM_ADD))
     return 1;
-  }
-  else if (identifier_string_match(SYM_SUB)) {
+  else if (identifier_string_match(SYM_SUB))
     return 1;
-  }
-  else if (identifier_string_match(SYM_MUL)) {
+  else if (identifier_string_match(SYM_MUL))
     return 1;
-  }
-  else if (identifier_string_match(SYM_DIVU)) {
+  else if (identifier_string_match(SYM_DIVU))
     return 1;
-  }
-  else if (identifier_string_match(SYM_REMU)) {
+  else if (identifier_string_match(SYM_REMU))
     return 1;
-  }
-  else if (identifier_string_match(SYM_SLTU)) {
+  else if (identifier_string_match(SYM_SLTU))
     return 1;
-  }
-  else if (identifier_string_match(SYM_BEQ)) {
+  else if (identifier_string_match(SYM_BEQ))
     return 1;
-  }
-  else if (identifier_string_match(SYM_JAL)) {
+  else if (identifier_string_match(SYM_JAL))
     return 1;
-  }
-  else if (identifier_string_match(SYM_JALR)) {
+  else if (identifier_string_match(SYM_JALR))
     return 1;
-  }
-  else if (identifier_string_match(SYM_ECALL)) {
+  else if (identifier_string_match(SYM_ECALL))
     return 1;
-  }
-  else {
+  else
     return 0;
-  }
 }
 
 uint64_t is_register() {
