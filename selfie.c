@@ -3494,26 +3494,26 @@ void get_symbol() {
       if (is_character_letter()) {
         // accommodate identifier and null for termination
         identifier = string_alloc(MAX_IDENTIFIER_LENGTH);
-		
-			i = 0;
 
-			while (is_character_letter_or_digit_or_underscore()) {
-			  if (i >= MAX_IDENTIFIER_LENGTH) {
-				syntax_error_message("identifier too long");
+        i = 0;
 
-				exit(EXITCODE_SCANNERERROR);
-			  }
+        while (is_character_letter_or_digit_or_underscore()) {
+          if (i >= MAX_IDENTIFIER_LENGTH) {
+            syntax_error_message("identifier too long");
 
-			  store_character(identifier, i, character);
+            exit(EXITCODE_SCANNERERROR);
+          }
 
-			  i = i + 1;
+          store_character(identifier, i, character);
 
-			  get_character();
-			}
+          i = i + 1;
 
-			store_character(identifier, i, 0); // null-terminated string
-	 
-			symbol = identifier_or_keyword();
+          get_character();
+        }
+
+        store_character(identifier, i, 0); // null-terminated string
+
+        symbol = identifier_or_keyword();
 
       } else if (is_character_digit()) {
         // accommodate integer and null for termination
@@ -5563,8 +5563,7 @@ void compile_cstar() {
         compile_procedure(variable_or_procedure_name, type);
       } else
         syntax_error_symbol(SYM_IDENTIFIER);
-	
-	} else {
+    } else {
       type = compile_type();
 
       if (symbol == SYM_IDENTIFIER) {
