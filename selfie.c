@@ -3318,7 +3318,8 @@ uint64_t get_instruction() {
   else if (identifier_string_match(SYM_NOP))
     return SYM_NOP;
   else {
-   syntax_error_message("not an instruction");
+   syntax_error_message("no instruction found");
+   
    exit(EXITCODE_SCANNERERROR);
   }
 }
@@ -3388,8 +3389,11 @@ uint64_t find_register() {
     return REG_T5;
   else if (symbol == SYM_T6)
     return REG_T6;
-  else 
+  else {
+    syntax_error_message("not a register");
+	  
     exit(EXITCODE_PARSERERROR);
+  }
 }
 
 uint64_t get_register() {
@@ -3458,6 +3462,8 @@ uint64_t get_register() {
   else if (identifier_string_match(SYM_T6))
     return SYM_T6;
   else 
+    syntax_error_message("no register found");
+
     exit(EXITCODE_SCANNERERROR);
 }
 
@@ -3879,7 +3885,7 @@ void get_a_symbol() {
 			
       if(integer_is_signed) {
         literal = -literal;
-		integer_is_signed = 0;
+        integer_is_signed = 0;
       }
 	  
       symbol = SYM_INTEGER;
@@ -5760,7 +5766,7 @@ void compile_assembly() {
           immediate = literal;
           
           emit_lui(rd, sign_extend(immediate, 20));
-		  get_a_symbol();
+          get_a_symbol();
         } else {
           syntax_error_unexpected();
 			  
@@ -5774,7 +5780,7 @@ void compile_assembly() {
     } else {
       syntax_error_unexpected();
 			  
-	  exit(EXITCODE_PARSERERROR);
+      exit(EXITCODE_PARSERERROR);
     }
   // addi rd,rs1,imm
   } else if (symbol == SYM_ADDI) {
@@ -6714,6 +6720,8 @@ void selfie_assemble(){
   }	
   
   ELF_header = create_elf_header(binary_length, code_length);
+  
+  entry_point = ELF_ENTRY_POINT;
 }
 
 // *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~
