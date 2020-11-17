@@ -11241,15 +11241,13 @@ uint64_t hypster(uint64_t* to_context) {
 
     if (handle_exception(from_context) == EXIT)
       return get_exit_code(from_context);
-    else
+    else {
       if (get_next_context(from_context) == (uint64_t*) 0) {
         to_context = used_contexts;
       } else {
         to_context = get_next_context(from_context);  
       }
-	  
-      // TODO: scheduler should go here
-      to_context = from_context;
+    }
   }
 }
 
@@ -11548,12 +11546,12 @@ uint64_t selfie_run_OS(uint64_t machine) {
   init_memory(memory);
   created_contexts = 0;
   processes = get_argument();
-
-  current_context = create_context(MY_CONTEXT, 0);
   
   while (created_contexts < atoi(processes)) {
 	current_context = create_context(MY_CONTEXT, 0);
+	
     boot_loader(current_context);
+	
 	created_contexts = created_contexts + 1;
   }
 
