@@ -1981,6 +1981,8 @@ void boot_loader(uint64_t* context);
 
 uint64_t selfie_run(uint64_t machine);
 
+uint64_t selfie_run_OS(uint64_t machine);
+
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
 uint64_t* MY_CONTEXT = (uint64_t*) 0;
@@ -11216,9 +11218,13 @@ uint64_t mipster(uint64_t* to_context) {
     } else if (handle_exception(from_context) == EXIT)
       return get_exit_code(from_context);
     else {
+      if (get_next_context(from_context) == (uint64_t*) 0) {
+        to_context = used_contexts;
+      } else {
+        to_context = get_next_context(from_context);  
+      }
+	  
       // TODO: scheduler should go here
-      to_context = from_context;
-
       timeout = TIMESLICE;
     }
   }
@@ -11235,9 +11241,13 @@ uint64_t hypster(uint64_t* to_context) {
 
     if (handle_exception(from_context) == EXIT)
       return get_exit_code(from_context);
-    else
-      // TODO: scheduler should go here
-      to_context = from_context;
+    else {
+      if (get_next_context(from_context) == (uint64_t*) 0) {
+        to_context = used_contexts;
+      } else {
+        to_context = get_next_context(from_context);  
+      }
+    }
   }
 }
 
@@ -11515,6 +11525,103 @@ uint64_t selfie_run(uint64_t machine) {
   return exit_code;
 }
 
+uint64_t selfie_run_OS(uint64_t machine) {
+  uint64_t exit_code;
+  uint64_t memory;
+  uint64_t created_contexts;
+  char* processes;
+  
+  memory = 128;
+
+  if (binary_length == 0) {
+    printf1("%s: nothing to run, debug, or host\n", selfie_name);
+
+    return EXITCODE_BADARGUMENTS;
+  }
+
+  reset_interpreter();
+  reset_profiler();
+  reset_microkernel();
+
+  init_memory(memory);
+  created_contexts = 0;
+  processes = get_argument();
+  
+  while (created_contexts < atoi(processes)) {
+	current_context = create_context(MY_CONTEXT, 0);
+	
+    boot_loader(current_context);
+	
+	created_contexts = created_contexts + 1;
+  }
+
+  // assert: number_of_remaining_arguments() > 0
+
+  printf3("%s: selfie executing %s with %uMB physical memory", selfie_name,
+    binary_name,
+    (char*) (total_page_frame_memory / MEGABYTE));
+
+  if (GC_ON) {
+    gc_init(current_context);
+
+    printf1(", gcing every %d mallocs, ", (char*) GC_PERIOD);
+    if (GC_REUSE) print("reusing memory"); else print("not reusing memory");
+  }
+
+  if (machine == DIPSTER) {
+    debug          = 1;
+    debug_syscalls = 1;
+    print(", debugger");
+  } else if (machine == RIPSTER) {
+    debug  = 1;
+    record = 1;
+    init_replay_engine();
+    print(", replay");
+  } else if (machine == HYPSTER) {
+    if (BOOTLEVELZERO)
+      // no hypster on boot level zero
+      machine = MIPSTER;
+  }
+
+  print(" on ");
+
+  run = 1;
+
+  if (machine == MIPSTER)
+    exit_code = mipster(current_context);
+  else if (machine == DIPSTER)
+    exit_code = mipster(current_context);
+  else if (machine == RIPSTER)
+    exit_code = mipster(current_context);
+  else if (machine == MINSTER)
+    exit_code = minster(current_context);
+  else if (machine == MOBSTER)
+    exit_code = mobster(current_context);
+  else if (machine == HYPSTER)
+    exit_code = hypster(current_context);
+  else
+    // change 0 to anywhere between 0% to 100% mipster
+    exit_code = mixter(current_context, 0);
+
+  run = 0;
+
+  record = 0;
+
+  debug_syscalls = 0;
+  debug          = 0;
+
+  printf3("%s: selfie terminating %s with exit code %d\n", selfie_name,
+    get_name(current_context),
+    (char*) sign_extend(exit_code, SYSCALL_BITWIDTH));
+
+  if (machine != HYPSTER)
+    print_profile(current_context);
+  else if (GC_ON)
+    print_gc_profile(current_context);
+
+  return exit_code;
+}
+
 // -----------------------------------------------------------------
 // ------------------- CONSOLE ARGUMENT SCANNER --------------------
 // -----------------------------------------------------------------
@@ -11600,12 +11707,16 @@ uint64_t selfie(uint64_t extras) {
       else if (extras == 0) {
         if (string_compare(argument, "-m"))
           return selfie_run(MIPSTER);
+        else if (string_compare(argument, "-x"))
+          return selfie_run_OS(MIPSTER);
         else if (string_compare(argument, "-d"))
           return selfie_run(DIPSTER);
         else if (string_compare(argument, "-r"))
           return selfie_run(RIPSTER);
         else if (string_compare(argument, "-y"))
           return selfie_run(HYPSTER);
+        else if (string_compare(argument, "-z"))
+          return selfie_run_OS(HYPSTER);
         else if (string_compare(argument, "-min"))
           return selfie_run(MINSTER);
         else if (string_compare(argument, "-mob"))
