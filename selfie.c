@@ -1804,7 +1804,7 @@ void      free_context(uint64_t* context);
 uint64_t* delete_context(uint64_t* context, uint64_t* from);
 uint64_t* delete_children(uint64_t* context, uint64_t* from);
 
-uint64_t* copy_context(uint64_t* original, uint64_t location);
+uint64_t* copy_context(uint64_t* original);
 
 uint64_t* get_next_ready_context(uint64_t* context);
 
@@ -8058,34 +8058,26 @@ void implement_fork (uint64_t* original_context) {
   uint64_t count;
   uint64_t* copied_context;
   
-  pid_counter = new_pid();
-  
-  copied_context = copy_context(original_context, get_pc(original_context));
-  
-  set_context_parent(copied_context, original_context);
-  set_status(copied_context, READY);
+  copied_context = copy_context(original_context);
 
-  set_pt(copied_context, zalloc((VIRTUALMEMORYSIZE / PAGESIZE) * WORDSIZE));
   
   count = get_lowest_lo_page(original_context);
 
   while(count <= get_highest_lo_page(original_context)) {
-	copy_page_frame(original_context, copied_context, count);
-	count = count + 1;
+		copy_page_frame(original_context, copied_context, count);
+		count = count + 1;
   }
 
   count = get_lowest_hi_page(original_context);
   
   while(count <= get_highest_hi_page(original_context)) {
     copy_page_frame(original_context, copied_context, count);
-	count = count + 1;
+		count = count + 1;
   }
-  
+	  
   *(get_regs(original_context) + REG_A0) = pid_counter;
   *(get_regs(copied_context) + REG_A0) = 0;
   
-  set_pid(copied_context, pid_counter);
-
   set_pc(original_context, get_pc(original_context) + INSTRUCTIONSIZE);
   set_pc(copied_context, get_pc(copied_context) + INSTRUCTIONSIZE);
 }
@@ -10669,6 +10661,7 @@ uint64_t* new_context() {
   set_next_context(context, used_contexts);
   set_prev_context(context, (uint64_t*) 0);
   set_status(context, READY);
+	set_pid(context, new_pid());
 
   if (used_contexts != (uint64_t*) 0)
     set_prev_context(used_contexts, context);
@@ -10783,10 +10776,16 @@ uint64_t* delete_children(uint64_t* context, uint64_t* from) {
   while (child != (uint64_t*) 0) {
     if (get_context_parent(child) == context) {	  
       from = delete_children(child, from);
-			
 			from = delete_context(child, from);	
     
 			child = from;
+			
+		} else if (get_parent(child) == context) {
+			from = delete_children(child, from);
+			from = delete_context(child, from);	
+    
+			child = from;
+			
 		} else {
 	    child = get_next_context(child);
 		}
@@ -10794,7 +10793,7 @@ uint64_t* delete_children(uint64_t* context, uint64_t* from) {
   return from;
 }
 
-uint64_t* copy_context(uint64_t* original, uint64_t location) {
+uint64_t* copy_context(uint64_t* original) {
   uint64_t* context;
   uint64_t r;
 
@@ -10810,10 +10809,10 @@ uint64_t* copy_context(uint64_t* original, uint64_t location) {
     r = r + 1;
   }
 
-  set_lowest_lo_page(context, get_lowest_lo_page(original));
-  set_highest_lo_page(context, get_highest_lo_page(original));
-  set_lowest_hi_page(context, get_lowest_hi_page(original));
-  set_highest_hi_page(context, get_highest_hi_page(original));
+  set_lowest_lo_page(context, get_page_of_virtual_address(get_code_seg_start(original)));
+  set_highest_lo_page(context, get_page_of_virtual_address(get_program_break(original) - WORDSIZE) + 1);
+  set_lowest_hi_page(context, get_page_of_virtual_address(*(get_regs(context) + REG_SP)));
+  set_highest_hi_page(context, NUMBEROFPAGES);
   set_code_seg_start(context, get_code_seg_start(original));
   set_data_seg_start(context, get_data_seg_start(original));
   set_heap_seg_start(context, get_heap_seg_start(original));
@@ -10821,10 +10820,14 @@ uint64_t* copy_context(uint64_t* original, uint64_t location) {
   set_exception(context, get_exception(original));
   set_fault(context, get_fault(original));
   set_exit_code(context, get_exit_code(original));
-  set_context_parent(context, get_context_parent(original));
   set_virtual_context(context, get_virtual_context(original));
   set_name(context, get_name(original));
+	set_context_parent(context, original);
+	set_parent(context, get_parent(original));
+	
+	set_pt(context, zalloc(VIRTUALMEMORYSIZE / PAGESIZE * WORDSIZE));
   
+	
   r = 0;
 
   while (r < NUMBEROFREGISTERS) {
@@ -10833,7 +10836,7 @@ uint64_t* copy_context(uint64_t* original, uint64_t location) {
     r = r + 1;
   }
 	
-  set_pc(context, location);
+	set_pc(context, get_pc(original));
 
   return context;
 }
@@ -11487,7 +11490,6 @@ uint64_t handle_exception(uint64_t* context) {
 uint64_t mipster(uint64_t* to_context) {
   uint64_t timeout;
   uint64_t* from_context;
-	// uint64_t* context;
 
   print("mipster\n");
   printf1("%s: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n", selfie_name);
@@ -11504,12 +11506,14 @@ uint64_t mipster(uint64_t* to_context) {
       timeout = TIMEROFF;
     } else if (handle_exception(from_context) == EXIT)
       return get_exit_code(from_context);
+		
     else {
 			
-			//printf1("\nUsed: %p\n", (char*) used_contexts);
-      to_context = used_contexts;
-      while (get_status(to_context) != READY)
-        to_context = get_next_context(to_context);
+			to_context = used_contexts;
+
+      while (get_status(to_context) != READY) {
+				to_context = get_next_context(to_context);
+			}
 			
       timeout = TIMESLICE;
     }
