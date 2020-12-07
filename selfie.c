@@ -1806,8 +1806,6 @@ uint64_t* delete_children(uint64_t* context, uint64_t* from);
 
 uint64_t* copy_context(uint64_t* original);
 
-uint64_t* get_next_ready_context(uint64_t* context);
-
 // context struct:
 // +----+-----------------+
 // |  0 | next context    | pointer to next context
@@ -8060,6 +8058,10 @@ void implement_fork (uint64_t* original_context) {
   
   copied_context = copy_context(original_context);
 
+	set_lowest_lo_page(original_context, get_page_of_virtual_address(get_code_seg_start(original_context)));
+  set_highest_lo_page(original_context, get_page_of_virtual_address(get_program_break(original_context) - WORDSIZE) + 1);
+  set_lowest_hi_page(original_context, get_page_of_virtual_address(*(get_regs(original_context) + REG_SP)));
+  set_highest_hi_page(original_context, NUMBEROFPAGES);
   
   count = get_lowest_lo_page(original_context);
 
@@ -10719,6 +10721,7 @@ void init_context(uint64_t* context, uint64_t* parent, uint64_t* vctxt) {
     set_fault(context, 0);
 
     set_exit_code(context, EXITCODE_NOERROR);
+		set_status(context, READY);
   }
 
   set_parent(context, parent);
@@ -10841,37 +10844,6 @@ uint64_t* copy_context(uint64_t* original) {
   return context;
 }
 
-uint64_t* get_next_ready_context(uint64_t* context) {
-  uint64_t* found_context;
-
-  printf1("\nSearching for next ready context from %p\n", (char*) context);
-
-  if (context == (uint64_t*) 0)	
-    context = used_contexts;
-  
-  found_context = get_next_context(context);
-  
-
-  while (found_context != context) {
-    if (found_context == (uint64_t*) 0) {
-      found_context = used_contexts;
-			
-    } else if (get_status(found_context) == READY) {
-			return found_context;
-		} else {
-			found_context = get_next_context(found_context);
-		}
-  }
-	
-  if (get_status(context) == READY)
-    return context;
-	else {
-		print("\nUncaught Exception\n");
-
-		exit(EXITCODE_UNCAUGHTEXCEPTION);
-	}
-}
-
 // -----------------------------------------------------------------
 // -------------------------- MICROKERNEL --------------------------
 // -----------------------------------------------------------------
@@ -10917,7 +10889,7 @@ void save_context(uint64_t* context) {
   if (get_parent(context) != MY_CONTEXT) {
     // upload changes in context to virtual context in parent address space
     parent_table = get_pt(get_parent(context));
-
+		
     vctxt = get_virtual_context(context);
 
     store_virtual_memory(parent_table, program_counter(vctxt), get_pc(context));
@@ -10938,6 +10910,7 @@ void save_context(uint64_t* context) {
     store_virtual_memory(parent_table, exception(vctxt), get_exception(context));
     store_virtual_memory(parent_table, fault(vctxt), get_fault(context));
     store_virtual_memory(parent_table, exit_code(vctxt), get_exit_code(context));
+		store_virtual_memory(parent_table, status(vctxt), get_status(context));
 
     // garbage collector state (only necessary if context is gced by different gcs)
 
@@ -11039,6 +11012,8 @@ void restore_context(uint64_t* context) {
     set_fault(context, load_virtual_memory(parent_table, fault(vctxt)));
 
     set_exit_code(context, load_virtual_memory(parent_table, exit_code(vctxt)));
+		
+		set_status(context, load_virtual_memory(parent_table, status(vctxt)));
 
     table = (uint64_t*) load_virtual_memory(parent_table, page_table(vctxt));
 
@@ -11064,8 +11039,8 @@ void restore_context(uint64_t* context) {
     set_free_list_head(context, (uint64_t*) load_virtual_memory(parent_table, free_list_head(vctxt)));
     set_gcs_in_period(context, load_virtual_memory(parent_table, gcs_in_period(vctxt)));
     set_use_gc_kernel(context, load_virtual_memory(parent_table, use_gc_kernel(vctxt)));
-  }
-
+  } 
+	
   // restore machine state
   pc        = get_pc(context);
   registers = get_regs(context);
@@ -11490,6 +11465,7 @@ uint64_t handle_exception(uint64_t* context) {
 uint64_t mipster(uint64_t* to_context) {
   uint64_t timeout;
   uint64_t* from_context;
+	uint64_t is_found;
 
   print("mipster\n");
   printf1("%s: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n", selfie_name);
@@ -11508,11 +11484,20 @@ uint64_t mipster(uint64_t* to_context) {
       return get_exit_code(from_context);
 		
     else {
-			
+			is_found = 0;
 			to_context = used_contexts;
 
-      while (get_status(to_context) != READY) {
-				to_context = get_next_context(to_context);
+      while (is_found == 0) {
+				if (get_status(to_context) == READY) {
+					if (get_virtual_context(to_context) == (uint64_t*) 0) {
+						is_found = 1;
+						
+					} else {
+					  to_context = get_next_context(to_context);
+					}
+					
+				} else
+					to_context = get_next_context(to_context);
 			}
 			
       timeout = TIMESLICE;
@@ -11745,8 +11730,6 @@ uint64_t selfie_run(uint64_t machine) {
   init_memory(atoi(peek_argument(0)));
 
   current_context = create_context(MY_CONTEXT, 0);
-
-  pid_counter = new_pid();
   
   // assert: number_of_remaining_arguments() > 0
 
