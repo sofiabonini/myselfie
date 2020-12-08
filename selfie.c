@@ -1619,9 +1619,9 @@ uint64_t pc = 0; // program counter
 uint64_t pid_counter = 1; // process id
 
 // states of contexts
-uint64_t* READY = (uint64_t*) 0;
-uint64_t* BLOCKED = (uint64_t*) 1;
-uint64_t* ZOMBIE = (uint64_t*) 2;
+uint64_t READY = 0;
+uint64_t BLOCKED = 1;
+uint64_t ZOMBIE = 2;
 
 uint64_t ir = 0; // instruction register
 uint64_t is = 0; // instruction id
@@ -1841,7 +1841,7 @@ uint64_t* copy_context(uint64_t* original);
 // CAUTION: contexts are extended in the symbolic execution engine!
 
 uint64_t* allocate_context() {
-  return smalloc(12 * SIZEOFUINT64STAR + 15 * SIZEOFUINT64);
+  return smalloc(11 * SIZEOFUINT64STAR + 16 * SIZEOFUINT64);
 }
 
 uint64_t next_context(uint64_t* context)    { return (uint64_t) context; }
@@ -1894,7 +1894,7 @@ uint64_t* get_virtual_context(uint64_t* context) { return (uint64_t*) *(context 
 char*     get_name(uint64_t* context)            { return (char*)     *(context + 18); }
 uint64_t* get_children(uint64_t* context)        { return (uint64_t*) *(context + 19); }
 uint64_t* get_context_parent(uint64_t* context)  { return (uint64_t*) *(context + 20); }
-uint64_t* get_status(uint64_t* context)          { return (uint64_t*) *(context + 21); }
+uint64_t  get_status(uint64_t* context)          { return             *(context + 21); }
 uint64_t  get_pid(uint64_t* context)             { return             *(context + 22); }
 
 uint64_t* get_used_list_head(uint64_t* context)   { return (uint64_t*) *(context + 23); }
@@ -1923,7 +1923,7 @@ void set_virtual_context(uint64_t* context, uint64_t* vctxt)          { *(contex
 void set_name(uint64_t* context, char* name)                          { *(context + 18) = (uint64_t) name; }
 void set_children(uint64_t* context, uint64_t* children)              { *(context + 19) = (uint64_t) children; }
 void set_context_parent(uint64_t* context, uint64_t* context_parent)  { *(context + 20) = (uint64_t) context_parent; }
-void set_status(uint64_t* context, uint64_t* status)                  { *(context + 21) = (uint64_t) status; }
+void set_status(uint64_t* context, uint64_t status)                   { *(context + 21) = status; }
 void set_pid(uint64_t* context, uint64_t pid)                         { *(context + 22) = pid; }
 
 void set_used_list_head(uint64_t* context, uint64_t* used_list_head) { *(context + 23) = (uint64_t) used_list_head; }
@@ -8128,7 +8128,7 @@ void implement_wait(uint64_t* context) {
     *(get_regs(context) + REG_A0) = -1;
     return;
 		
-  // if no child has exited, set state to BLOCKED		
+  // if no child has exited, set parent to BLOCKED		
   } else {
     set_status(context, BLOCKED);
     return;
@@ -10721,7 +10721,6 @@ void init_context(uint64_t* context, uint64_t* parent, uint64_t* vctxt) {
     set_fault(context, 0);
 
     set_exit_code(context, EXITCODE_NOERROR);
-    set_status(context, READY);
   }
 
   set_parent(context, parent);
