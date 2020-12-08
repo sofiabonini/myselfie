@@ -8058,7 +8058,7 @@ void implement_fork (uint64_t* original_context) {
   
   copied_context = copy_context(original_context);
 
-	set_lowest_lo_page(original_context, get_page_of_virtual_address(get_code_seg_start(original_context)));
+  set_lowest_lo_page(original_context, get_page_of_virtual_address(get_code_seg_start(original_context)));
   set_highest_lo_page(original_context, get_page_of_virtual_address(get_program_break(original_context) - WORDSIZE) + 1);
   set_lowest_hi_page(original_context, get_page_of_virtual_address(*(get_regs(original_context) + REG_SP)));
   set_highest_hi_page(original_context, NUMBEROFPAGES);
@@ -8066,15 +8066,15 @@ void implement_fork (uint64_t* original_context) {
   count = get_lowest_lo_page(original_context);
 
   while(count <= get_highest_lo_page(original_context)) {
-		copy_page_frame(original_context, copied_context, count);
-		count = count + 1;
+    copy_page_frame(original_context, copied_context, count);
+    count = count + 1;
   }
 
   count = get_lowest_hi_page(original_context);
   
   while(count <= get_highest_hi_page(original_context)) {
     copy_page_frame(original_context, copied_context, count);
-		count = count + 1;
+    count = count + 1;
   }
 	  
   *(get_regs(original_context) + REG_A0) = pid_counter;
@@ -8112,12 +8112,12 @@ void implement_wait(uint64_t* context) {
     if (get_context_parent(child) == context) {
       has_no_children = 0;
 			
-			if (get_status(child) == ZOMBIE) {
-				*(get_regs(context) + REG_A0) = get_pid(child);
-				used_contexts = delete_children(child, used_contexts);
-				used_contexts = delete_context(child, used_contexts);
-				return;
-			}
+      if (get_status(child) == ZOMBIE) {
+        *(get_regs(context) + REG_A0) = get_pid(child);
+        used_contexts = delete_children(child, used_contexts);
+        used_contexts = delete_context(child, used_contexts);
+        return;
+      }
     }
 		
     child = get_next_context(child);
@@ -8126,13 +8126,13 @@ void implement_wait(uint64_t* context) {
   // pid = -1, if parent calls wait, but has no children
   if (has_no_children == 1) {
     *(get_regs(context) + REG_A0) = -1;
-		return;
+    return;
 		
-	// if no child has exited, set state to BLOCKED		
-	} else {
+  // if no child has exited, set state to BLOCKED		
+  } else {
     set_status(context, BLOCKED);
     return;
-	}
+  }
 }
 
 void copy_page_frame(uint64_t* original_context, uint64_t* copied_context, uint64_t page) {
@@ -10663,7 +10663,7 @@ uint64_t* new_context() {
   set_next_context(context, used_contexts);
   set_prev_context(context, (uint64_t*) 0);
   set_status(context, READY);
-	set_pid(context, new_pid());
+  set_pid(context, new_pid());
 
   if (used_contexts != (uint64_t*) 0)
     set_prev_context(used_contexts, context);
@@ -10721,7 +10721,7 @@ void init_context(uint64_t* context, uint64_t* parent, uint64_t* vctxt) {
     set_fault(context, 0);
 
     set_exit_code(context, EXITCODE_NOERROR);
-		set_status(context, READY);
+    set_status(context, READY);
   }
 
   set_parent(context, parent);
@@ -10779,20 +10779,21 @@ uint64_t* delete_children(uint64_t* context, uint64_t* from) {
   while (child != (uint64_t*) 0) {
     if (get_context_parent(child) == context) {	  
       from = delete_children(child, from);
-			from = delete_context(child, from);	
+      from = delete_context(child, from);	
     
-			child = from;
+      child = from;
 			
-		} else if (get_parent(child) == context) {
-			from = delete_children(child, from);
-			from = delete_context(child, from);	
+    } else if (get_parent(child) == context) {
+      from = delete_children(child, from);
+      from = delete_context(child, from);	
     
-			child = from;
+      child = from;
 			
-		} else {
-	    child = get_next_context(child);
-		}
-	}
+    } else {
+      child = get_next_context(child);
+    }
+  }
+
   return from;
 }
 
@@ -10804,7 +10805,7 @@ uint64_t* copy_context(uint64_t* original) {
 
   set_regs(context, smalloc(NUMBEROFREGISTERS * WORDSIZE));
 
-  r = 0;
+	r = 0;
 
   while (r < NUMBEROFREGISTERS) {
     *(get_regs(context) + r) = *(get_regs(original) + r);
@@ -10825,21 +10826,12 @@ uint64_t* copy_context(uint64_t* original) {
   set_exit_code(context, get_exit_code(original));
   set_virtual_context(context, get_virtual_context(original));
   set_name(context, get_name(original));
-	set_context_parent(context, original);
-	set_parent(context, get_parent(original));
+  set_context_parent(context, original);
+  set_parent(context, get_parent(original));
 	
-	set_pt(context, zalloc(VIRTUALMEMORYSIZE / PAGESIZE * WORDSIZE));
-  
+  set_pt(context, zalloc(VIRTUALMEMORYSIZE / PAGESIZE * WORDSIZE));
 	
-  r = 0;
-
-  while (r < NUMBEROFREGISTERS) {
-    *(get_regs(context) + r) = *(get_regs(original) + r);
-
-    r = r + 1;
-  }
-	
-	set_pc(context, get_pc(original));
+  set_pc(context, get_pc(original));
 
   return context;
 }
@@ -10910,7 +10902,7 @@ void save_context(uint64_t* context) {
     store_virtual_memory(parent_table, exception(vctxt), get_exception(context));
     store_virtual_memory(parent_table, fault(vctxt), get_fault(context));
     store_virtual_memory(parent_table, exit_code(vctxt), get_exit_code(context));
-		store_virtual_memory(parent_table, status(vctxt), get_status(context));
+    store_virtual_memory(parent_table, status(vctxt), get_status(context));
 
     // garbage collector state (only necessary if context is gced by different gcs)
 
@@ -11013,7 +11005,7 @@ void restore_context(uint64_t* context) {
 
     set_exit_code(context, load_virtual_memory(parent_table, exit_code(vctxt)));
 		
-		set_status(context, load_virtual_memory(parent_table, status(vctxt)));
+    set_status(context, load_virtual_memory(parent_table, status(vctxt)));
 
     table = (uint64_t*) load_virtual_memory(parent_table, page_table(vctxt));
 
@@ -11362,19 +11354,19 @@ uint64_t handle_system_call(uint64_t* context) {
 	
     // if context has no parent, delete it and all its children
     if (get_context_parent(context) == (uint64_t*) 0) {	
-	    used_contexts = delete_children(context, used_contexts);
-			used_contexts = delete_context(context, used_contexts);
-	  // if a child exits and parent is blocked, unblock the parent an delete context
+      used_contexts = delete_children(context, used_contexts);
+      used_contexts = delete_context(context, used_contexts);
+    // if a child exits and parent is blocked, unblock the parent an delete context
     } else if (get_status(get_context_parent(context)) == BLOCKED) {
-	    set_status(get_context_parent(context), READY);
-	    *(get_regs(get_context_parent(context)) + REG_A0) = get_pid(context);
-			used_contexts = delete_children(context, used_contexts);
-	    used_contexts = delete_context(context, used_contexts);
+      set_status(get_context_parent(context), READY);
+      *(get_regs(get_context_parent(context)) + REG_A0) = get_pid(context);
+      used_contexts = delete_children(context, used_contexts);
+      used_contexts = delete_context(context, used_contexts);
 	  
     // if child exits before parent calls wait, set child to zombie and delete its children
     } else {
       set_status(context, ZOMBIE);
-	    used_contexts = delete_children(context, used_contexts);
+      used_contexts = delete_children(context, used_contexts);
     }
 
     // exit only if all contexts have exited
@@ -11465,7 +11457,7 @@ uint64_t handle_exception(uint64_t* context) {
 uint64_t mipster(uint64_t* to_context) {
   uint64_t timeout;
   uint64_t* from_context;
-	uint64_t is_found;
+  uint64_t is_found;
 
   print("mipster\n");
   printf1("%s: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n", selfie_name);
@@ -11484,21 +11476,21 @@ uint64_t mipster(uint64_t* to_context) {
       return get_exit_code(from_context);
 		
     else {
-			is_found = 0;
-			to_context = used_contexts;
+      is_found = 0;
+      to_context = used_contexts;
 
       while (is_found == 0) {
-				if (get_status(to_context) == READY) {
-					if (get_virtual_context(to_context) == (uint64_t*) 0) {
-						is_found = 1;
+        if (get_status(to_context) == READY) {
+          if (get_virtual_context(to_context) == (uint64_t*) 0) {
+            is_found = 1;
 						
-					} else {
-					  to_context = get_next_context(to_context);
-					}
+          } else {
+            to_context = get_next_context(to_context);
+          }
 					
-				} else
-					to_context = get_next_context(to_context);
-			}
+        } else
+          to_context = get_next_context(to_context);
+      }
 			
       timeout = TIMESLICE;
     }
