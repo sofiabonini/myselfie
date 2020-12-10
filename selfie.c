@@ -1616,7 +1616,7 @@ uint64_t TIMEROFF = 0; // must be 0 to turn off timer interrupt
 
 uint64_t pc = 0; // program counter
 
-uint64_t pid_counter = 1; // process id
+uint64_t pid_counter = 0; // process id
 
 // states of contexts
 uint64_t READY = 0;
@@ -8056,32 +8056,34 @@ void implement_fork (uint64_t* original_context) {
   uint64_t count;
   uint64_t* copied_context;
   
+  if (debug_syscalls) {
+   print("(fork): ");
+   print_register_hexadecimal(REG_A0);
+   print(" |- ");
+   print_register_hexadecimal(REG_A0);
+  }
+  
   copied_context = copy_context(original_context);
 
-  set_lowest_lo_page(original_context, get_page_of_virtual_address(get_code_seg_start(original_context)));
-  set_highest_lo_page(original_context, get_page_of_virtual_address(get_program_break(original_context) - WORDSIZE) + 1);
-  set_lowest_hi_page(original_context, get_page_of_virtual_address(*(get_regs(original_context) + REG_SP)));
-  set_highest_hi_page(original_context, NUMBEROFPAGES);
-  
-  count = get_lowest_lo_page(original_context);
+  count = get_lowest_lo_page(copied_context);
 
-  while(count <= get_highest_lo_page(original_context)) {
+  while(count < get_highest_lo_page(copied_context)) {
     copy_page_frame(original_context, copied_context, count);
     count = count + 1;
   }
 
-  count = get_lowest_hi_page(original_context);
+  count = get_lowest_hi_page(copied_context);
   
-  while(count <= get_highest_hi_page(original_context)) {
+  while(count < get_highest_hi_page(copied_context)) {
     copy_page_frame(original_context, copied_context, count);
     count = count + 1;
   }
-	  
-  *(get_regs(original_context) + REG_A0) = pid_counter;
-  *(get_regs(copied_context) + REG_A0) = 0;
-  
-  set_pc(original_context, get_pc(original_context) + INSTRUCTIONSIZE);
-  set_pc(copied_context, get_pc(copied_context) + INSTRUCTIONSIZE);
+
+  if (debug_syscalls) {
+    print(" -> ");
+    print_register_hexadecimal(REG_A0);
+    println();
+  }
 }
 
 void emit_wait() {
@@ -8101,6 +8103,13 @@ void emit_wait() {
 void implement_wait(uint64_t* context) {
   uint64_t* child;
   uint64_t has_no_children;
+
+  if (debug_syscalls) {
+   print("(wait): ");
+   print_register_hexadecimal(REG_A0);
+   print(" |- ");
+   print_register_hexadecimal(REG_A0);
+  }
 
   set_pc(context, get_pc(context) + INSTRUCTIONSIZE);
 	
@@ -8126,12 +8135,16 @@ void implement_wait(uint64_t* context) {
   // pid = -1, if parent calls wait, but has no children
   if (has_no_children == 1) {
     *(get_regs(context) + REG_A0) = -1;
-    return;
 		
   // if no child has exited, set parent to BLOCKED		
   } else {
     set_status(context, BLOCKED);
-    return;
+  }
+ 
+  if (debug_syscalls) {
+    print(" -> ");
+    print_register_hexadecimal(REG_A0);
+    println();
   }
 }
 
@@ -10663,7 +10676,6 @@ uint64_t* new_context() {
   set_next_context(context, used_contexts);
   set_prev_context(context, (uint64_t*) 0);
   set_status(context, READY);
-  set_pid(context, new_pid());
 
   if (used_contexts != (uint64_t*) 0)
     set_prev_context(used_contexts, context);
@@ -10827,10 +10839,15 @@ uint64_t* copy_context(uint64_t* original) {
   set_name(context, get_name(original));
   set_context_parent(context, original);
   set_parent(context, get_parent(original));
-	
+  set_pid(context, new_pid());
+
   set_pt(context, zalloc(VIRTUALMEMORYSIZE / PAGESIZE * WORDSIZE));
-	
+
+  set_pc(original, get_pc(original) + INSTRUCTIONSIZE);
   set_pc(context, get_pc(original));
+
+  *(get_regs(original) + REG_A0) = pid_counter;
+  *(get_regs(context) + REG_A0) = 0;
 
   return context;
 }
@@ -11004,8 +11021,6 @@ void restore_context(uint64_t* context) {
 
     set_exit_code(context, load_virtual_memory(parent_table, exit_code(vctxt)));
 		
-    set_status(context, load_virtual_memory(parent_table, status(vctxt)));
-
     table = (uint64_t*) load_virtual_memory(parent_table, page_table(vctxt));
 
     // assert: virtual context page table is only mapped from beginning up and end down
@@ -11030,7 +11045,7 @@ void restore_context(uint64_t* context) {
     set_free_list_head(context, (uint64_t*) load_virtual_memory(parent_table, free_list_head(vctxt)));
     set_gcs_in_period(context, load_virtual_memory(parent_table, gcs_in_period(vctxt)));
     set_use_gc_kernel(context, load_virtual_memory(parent_table, use_gc_kernel(vctxt)));
-  } 
+  }
 	
   // restore machine state
   pc        = get_pc(context);
@@ -11355,7 +11370,8 @@ uint64_t handle_system_call(uint64_t* context) {
     if (get_context_parent(context) == (uint64_t*) 0) {	
       used_contexts = delete_children(context, used_contexts);
       used_contexts = delete_context(context, used_contexts);
-    // if a child exits and parent is blocked, unblock the parent an delete context
+
+    // if a child exits and parent is blocked, unblock the parent an delete child and its children
     } else if (get_status(get_context_parent(context)) == BLOCKED) {
       set_status(get_context_parent(context), READY);
       *(get_regs(get_context_parent(context)) + REG_A0) = get_pid(context);
@@ -11371,10 +11387,8 @@ uint64_t handle_system_call(uint64_t* context) {
     // exit only if all contexts have exited
     if (used_contexts == (uint64_t*) 0)
       return EXIT;
-    else {
-      used_contexts = delete_context(context, used_contexts);
+    else
       return DONOTEXIT;
-    }
 	
   } else {
     printf2("%s: unknown system call %u\n", selfie_name, (char*) a7);
@@ -11483,10 +11497,8 @@ uint64_t mipster(uint64_t* to_context) {
           if (get_virtual_context(to_context) == (uint64_t*) 0) {
             is_found = 1;
 						
-          } else {
+          } else
             to_context = get_next_context(to_context);
-          }
-					
         } else
           to_context = get_next_context(to_context);
       }
@@ -11498,11 +11510,13 @@ uint64_t mipster(uint64_t* to_context) {
 
 uint64_t hypster(uint64_t* to_context) {
   uint64_t* from_context;
+  uint64_t is_found;
 
   print("hypster\n");
   printf1("%s: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n", selfie_name);
 
   while (1) {
+    
     from_context = hypster_switch(to_context, TIMESLICE);
 
     if (handle_exception(from_context) == EXIT)
@@ -11512,6 +11526,20 @@ uint64_t hypster(uint64_t* to_context) {
         to_context = used_contexts;
       } else {
         to_context = get_next_context(from_context);  
+      }
+
+      is_found = 0;
+
+      while (is_found == 0) {
+        if (get_status(to_context) == READY) {
+          if (get_virtual_context(to_context) == (uint64_t*) 0) {
+            is_found = 1;
+						
+          } else {
+            to_context = get_next_context(to_context);
+          }
+        } else
+          to_context = get_next_context(to_context);
       }
     }
   }
