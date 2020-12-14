@@ -8127,14 +8127,14 @@ uint64_t implement_wait(uint64_t* context) {
   while (child != (uint64_t*) 0) {			
     if (get_context_parent(child) == context) {
       has_no_children = 0;
-      exit_status = sign_shrink(get_exit_code((uint64_t*) child), 8);
+      exit_status = sign_shrink(get_exit_code(child), 8);
       exit_status = left_shift(exit_status, 8);
       map_and_store(context, *(get_regs(context) + REG_A0), exit_status);
 			
       if (get_status(child) == ZOMBIE) {
         *(get_regs(context) + REG_A0) = get_pid(child);
         used_contexts = delete_context(child, used_contexts);
-        return get_pid((uint64_t*) child);
+        return get_pid(child);
       }
     }
 		
