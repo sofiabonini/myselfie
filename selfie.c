@@ -1121,7 +1121,7 @@ void emit_fork();
 void implement_fork(uint64_t* context);
 
 void emit_wait();
-void implement_wait(uint64_t* context);
+uint64_t implement_wait(uint64_t* context);
 
 void copy_page_frame(uint64_t* original_context, uint64_t* copied_context, uint64_t page);
 
@@ -1616,7 +1616,7 @@ uint64_t TIMEROFF = 0; // must be 0 to turn off timer interrupt
 
 uint64_t pc = 0; // program counter
 
-uint64_t pid_counter = 0; // process id
+uint64_t pid_counter = 1; // process id
 
 // states of contexts
 uint64_t READY = 0;
@@ -8090,7 +8090,6 @@ void emit_wait() {
   create_symbol_table_entry(LIBRARY_TABLE, "wait", 0, PROCEDURE, UINT64_T, 0, binary_length);
 
   emit_ld(REG_A0, REG_SP, 0);
-
   emit_addi(REG_SP, REG_SP, WORDSIZE);
 
   emit_addi(REG_A7, REG_ZR, SYSCALL_WAIT);
@@ -8100,9 +8099,11 @@ void emit_wait() {
   emit_jalr(REG_ZR, REG_RA, 0);
 }
 
-void implement_wait(uint64_t* context) {
+uint64_t implement_wait(uint64_t* context) {
   uint64_t* child;
   uint64_t has_no_children;
+  uint64_t vaddr;
+  uint64_t exit_status;
 
   if (debug_syscalls) {
    print("(wait): ");
@@ -8110,37 +8111,50 @@ void implement_wait(uint64_t* context) {
    print(" |- ");
    print_register_hexadecimal(REG_A0);
   }
-
-  set_pc(context, get_pc(context) + INSTRUCTIONSIZE);
 	
   child = used_contexts;
+  vaddr = *(get_regs(context) + REG_A0);
   has_no_children = 1;
+  set_pc(context, get_pc(context) + INSTRUCTIONSIZE);
+
+  if (vaddr != 0)
+    if (is_valid_data_stack_heap_address(context, vaddr) == 0) {
+      *(get_regs(context) + REG_A0) = -1;
+      return -1;
+    }  
   
   // look if a child is a ZOMBIE and then return from wait
   while (child != (uint64_t*) 0) {			
     if (get_context_parent(child) == context) {
       has_no_children = 0;
+      exit_status = sign_shrink(get_exit_code(child), 8);
+      exit_status = left_shift(exit_status, 8);
+      map_and_store(context, *(get_regs(context) + REG_A0), exit_status);
 			
       if (get_status(child) == ZOMBIE) {
         *(get_regs(context) + REG_A0) = get_pid(child);
-        used_contexts = delete_children(child, used_contexts);
         used_contexts = delete_context(child, used_contexts);
-        return;
+        return get_pid(child);
       }
     }
 		
     child = get_next_context(child);
-  } 
+  }
 
   // pid = -1, if parent calls wait, but has no children
   if (has_no_children == 1) {
     *(get_regs(context) + REG_A0) = -1;
+    return -1;
 		
   // if no child has exited, set parent to BLOCKED		
   } else {
-    set_status(context, BLOCKED);
+    set_status(context, BLOCKED);  
+    *(get_regs(context) + REG_A0) = 0;
+    return 0;
   }
- 
+
+  return 0;
+   
   if (debug_syscalls) {
     print(" -> ");
     print_register_hexadecimal(REG_A0);
@@ -11343,10 +11357,12 @@ void up_load_arguments(uint64_t* context, uint64_t argc, uint64_t* argv) {
 
 uint64_t handle_system_call(uint64_t* context) {
   uint64_t a7;
+  uint64_t exit_status;
 
   set_exception(context, EXCEPTION_NOEXCEPTION);
 
   a7 = *(get_regs(context) + REG_A7);
+  exit_status = 0;
 
   if (a7 == SYSCALL_BRK) {
     if (get_gc_enabled_gc(context))
@@ -11374,16 +11390,25 @@ uint64_t handle_system_call(uint64_t* context) {
     // if a child exits and parent is blocked, unblock the parent an delete child and its children
     } else if (get_status(get_context_parent(context)) == BLOCKED) {
       set_status(get_context_parent(context), READY);
-      *(get_regs(get_context_parent(context)) + REG_A0) = get_pid(context);
+      exit_status = sign_shrink(get_exit_code(context), 8);
+      exit_status = left_shift(exit_status, 8);
+      if (is_valid_virtual_address(*(get_regs(get_context_parent(context)) + REG_A0)))
+        map_and_store(get_context_parent(context), *(get_regs(get_context_parent(context)) + REG_A0), exit_status);
+
       used_contexts = delete_children(context, used_contexts);
       used_contexts = delete_context(context, used_contexts);
 	  
     // if child exits before parent calls wait, set child to zombie and delete its children
     } else {
       set_status(context, ZOMBIE);
+      exit_status = sign_shrink(get_exit_code(context), 8);
+      exit_status = left_shift(exit_status, 8);
+      if (is_valid_virtual_address(*(get_regs(get_context_parent(context)) + REG_A0)))
+        map_and_store(get_context_parent(context), *(get_regs(get_context_parent(context)) + REG_A0), exit_status);
+
       used_contexts = delete_children(context, used_contexts);
     }
-
+ 
     // exit only if all contexts have exited
     if (used_contexts == (uint64_t*) 0)
       return EXIT;
@@ -11485,10 +11510,10 @@ uint64_t mipster(uint64_t* to_context) {
       to_context = get_parent(from_context);
 
       timeout = TIMEROFF;
-    } else if (handle_exception(from_context) == EXIT)
+    } else if (handle_exception(from_context) == EXIT) {
       return get_exit_code(from_context);
 		
-    else {
+    } else {
       is_found = 0;
       to_context = used_contexts;
 
