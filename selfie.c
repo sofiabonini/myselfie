@@ -8203,6 +8203,13 @@ void emit_lock() {
 }
 
 void implement_lock(uint64_t* context) {
+  if (debug_syscalls) {
+    print("(lock): ");
+    print_register_hexadecimal(REG_A0);
+    print(" |- ");
+    print_register_hexadecimal(REG_A0);
+  }
+
   set_next_locked_context(context, locked_contexts);
   set_prev_locked_context(context, (uint64_t*) 0);
   set_lock_state(context, LOCK_ACQUIRE);
@@ -8214,6 +8221,12 @@ void implement_lock(uint64_t* context) {
 
   locked_contexts = context;
 
+  if (debug_syscalls) {
+    print(" -> ");
+    print_register_hexadecimal(REG_A0);
+    println();
+  }
+  
   set_pc(context, get_pc(context) + INSTRUCTIONSIZE);
 }
 
@@ -8228,6 +8241,12 @@ void emit_unlock() {
 }
 
 void implement_unlock(uint64_t* context) {
+  if (debug_syscalls) {
+    print("(unlock): ");
+    print_register_hexadecimal(REG_A0);
+    print(" |- ");
+    print_register_hexadecimal(REG_A0);
+  }
 
   // print warning if unlock() occures without previous lock()
   if (locked_contexts == (uint64_t*) 0) {
@@ -8246,6 +8265,12 @@ void implement_unlock(uint64_t* context) {
 
   if (locked_contexts != (uint64_t*) 0) {
     set_lock_state(locked_contexts, LOCK_ACQUIRE);
+  }
+
+  if (debug_syscalls) {
+    print(" -> ");
+    print_register_hexadecimal(REG_A0);
+    println();
   }
 
   set_pc(context, get_pc(context) + INSTRUCTIONSIZE);
