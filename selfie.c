@@ -1997,7 +1997,7 @@ uint64_t* current_context = (uint64_t*) 0; // context currently running
 
 uint64_t* used_contexts = (uint64_t*) 0; // doubly-linked list of used contexts
 uint64_t* free_contexts = (uint64_t*) 0; // singly-linked list of free contexts
-uint64_t* locked_contexts = (uint64_t*) 0;
+uint64_t* locked_contexts = (uint64_t*) 0; // doubly-linked list of locked contexts
 
 // ------------------------- INITIALIZATION ------------------------
 
@@ -8228,6 +8228,13 @@ void emit_unlock() {
 }
 
 void implement_unlock(uint64_t* context) {
+
+  // print warning if unlock() occures without previous lock()
+  if (locked_contexts == (uint64_t*) 0) {
+    print_line_number("warning", line_number);
+    print("unlock found, without previous lock\n");
+  }
+
   if (get_next_locked_context(context) != (uint64_t*) 0)
     set_prev_locked_context(get_next_locked_context(context), get_prev_locked_context(context));
 
