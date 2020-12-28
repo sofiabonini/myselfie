@@ -1816,6 +1816,10 @@ void      free_context(uint64_t* context);
 uint64_t* delete_context(uint64_t* context, uint64_t* from);
 uint64_t* delete_children(uint64_t* context, uint64_t* from);
 
+uint64_t* delete_locked_context(uint64_t* context, uint64_t* from);
+
+uint64_t is_lock_granted(uint64_t* context, uint64_t* from);
+
 uint64_t* copy_context(uint64_t* original);
 
 // context struct:
@@ -8254,18 +8258,7 @@ void implement_unlock(uint64_t* context) {
     print("unlock found, without previous lock\n");
   }
 
-  if (get_next_locked_context(context) != (uint64_t*) 0)
-    set_prev_locked_context(get_next_locked_context(context), get_prev_locked_context(context));
-
-  if (get_prev_locked_context(context) != (uint64_t*) 0) {
-    set_next_locked_context(get_prev_locked_context(context), get_next_locked_context(context));
-    set_prev_locked_context(context, (uint64_t*) 0);
-  } else
-    locked_contexts = get_next_locked_context(context);
-
-  if (locked_contexts != (uint64_t*) 0) {
-    set_lock_state(locked_contexts, LOCK_ACQUIRE);
-  }
+  locked_contexts = delete_locked_context(context, locked_contexts);
 
   if (debug_syscalls) {
     print(" -> ");
@@ -10936,6 +10929,40 @@ uint64_t* delete_children(uint64_t* context, uint64_t* from) {
   return from;
 }
 
+uint64_t* delete_locked_context(uint64_t* context, uint64_t* from) {
+  if (get_next_locked_context(context) != (uint64_t*) 0)
+    set_prev_locked_context(get_next_locked_context(context), get_prev_locked_context(context));
+
+  if (get_prev_locked_context(context) != (uint64_t*) 0) {
+    set_next_locked_context(get_prev_locked_context(context), get_next_locked_context(context));
+    set_prev_locked_context(context, (uint64_t*) 0);
+  } else
+    from = get_next_locked_context(context);
+
+  if (from != (uint64_t*) 0) {
+    set_lock_state(from, LOCK_ACQUIRE);
+  }
+
+  return from;
+}
+
+uint64_t is_lock_granted(uint64_t* context, uint64_t* from) {
+  uint64_t is_found;
+  uint64_t* locked_context;
+
+  is_found = 0;
+  locked_context = from;
+
+  while(locked_context != (uint64_t*) 0) {
+    if (context == locked_context)
+      is_found = 1;
+
+    locked_context = get_next_locked_context(locked_context);
+  }
+
+  return is_found;
+}
+
 uint64_t* copy_context(uint64_t* original) {
   uint64_t* context;
   uint64_t r;
@@ -11505,6 +11532,11 @@ uint64_t handle_system_call(uint64_t* context) {
       used_contexts = delete_children(context, used_contexts);
       used_contexts = delete_context(context, used_contexts);
 
+      // delete context from locked_contexts, if lock was granted
+      if (is_lock_granted(context, locked_contexts)) {
+        locked_contexts = delete_locked_context(context, locked_contexts);
+      }
+
     // if a child exits and parent is blocked, unblock the parent an delete child and its children
     } else if (get_status(get_context_parent(context)) == BLOCKED) {
       set_status(get_context_parent(context), READY);
@@ -11512,6 +11544,11 @@ uint64_t handle_system_call(uint64_t* context) {
       exit_status = left_shift(exit_status, 8);
       if (is_valid_virtual_address(*(get_regs(get_context_parent(context)) + REG_A0)))
         map_and_store(get_context_parent(context), *(get_regs(get_context_parent(context)) + REG_A0), exit_status);
+      
+      // delete context from locked_contexts, if lock was granted
+      if (is_lock_granted(context, locked_contexts)) {
+        locked_contexts = delete_locked_context(context, locked_contexts);
+      }
 
       used_contexts = delete_children(context, used_contexts);
       used_contexts = delete_context(context, used_contexts);
@@ -11523,6 +11560,11 @@ uint64_t handle_system_call(uint64_t* context) {
       exit_status = left_shift(exit_status, 8);
       if (is_valid_virtual_address(*(get_regs(get_context_parent(context)) + REG_A0)))
         map_and_store(get_context_parent(context), *(get_regs(get_context_parent(context)) + REG_A0), exit_status);
+      
+      // delete context from locked_contexts, if lock was granted
+      if (is_lock_granted(context, locked_contexts)) {
+        locked_contexts = delete_locked_context(context, locked_contexts);
+      }
 
       used_contexts = delete_children(context, used_contexts);
     }
