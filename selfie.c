@@ -1123,6 +1123,12 @@ void implement_fork(uint64_t* context);
 void emit_wait();
 uint64_t implement_wait(uint64_t* context);
 
+void emit_lock();
+void implement_lock(uint64_t* context);
+
+void emit_unlock();
+void implement_unlock(uint64_t* context);
+
 void copy_page_frame(uint64_t* original_context, uint64_t* copied_context, uint64_t page);
 
 void     emit_open();
@@ -1149,6 +1155,8 @@ uint64_t SYSCALL_OPENAT = 56;
 uint64_t SYSCALL_BRK    = 214;
 uint64_t SYSCALL_FORK   = 215;
 uint64_t SYSCALL_WAIT   = 216;
+uint64_t SYSCALL_LOCK   = 217;
+uint64_t SYSCALL_UNLOCK = 218;
 
 /* DIRFD_AT_FDCWD corresponds to AT_FDCWD in fcntl.h and
    is passed as first argument of the openat system call
@@ -1623,6 +1631,10 @@ uint64_t READY = 0;
 uint64_t BLOCKED = 1;
 uint64_t ZOMBIE = 2;
 
+//lock states
+uint64_t LOCKED = 0;
+uint64_t LOCK_ACQUIRE = 1;
+
 uint64_t ir = 0; // instruction register
 uint64_t is = 0; // instruction id
 
@@ -1804,6 +1816,10 @@ void      free_context(uint64_t* context);
 uint64_t* delete_context(uint64_t* context, uint64_t* from);
 uint64_t* delete_children(uint64_t* context, uint64_t* from);
 
+uint64_t* delete_locked_context(uint64_t* context, uint64_t* from);
+
+uint64_t is_lock_granted(uint64_t* context, uint64_t* from);
+
 uint64_t* copy_context(uint64_t* original);
 
 // context struct:
@@ -1831,17 +1847,20 @@ uint64_t* copy_context(uint64_t* original);
 // | 20 | context parent  | parent of context
 // | 21 | status          | status of context (READY, BLOCKED, ZOMBIE)
 // | 22 | pid             | process id
+// | 23 | lock state      | state if context called lock or unlock
+// | 24 | next locked     | pointer to next locked context
+// | 25 | prev locked     | pointer to previous locked context
 // +----+-----------------+
-// | 23 | used-list head  | pointer to head of used list
-// | 24 | free-list head  | pointer to head of free list
-// | 25 | gcs counter     | number of gc runs in gc period
-// | 26 | gc enabled      | flag indicating whether to use gc or not
+// | 26 | used-list head  | pointer to head of used list
+// | 27 | free-list head  | pointer to head of free list
+// | 28 | gcs counter     | number of gc runs in gc period
+// | 29 | gc enabled      | flag indicating whether to use gc or not
 // +----+-----------------+
 
 // CAUTION: contexts are extended in the symbolic execution engine!
 
 uint64_t* allocate_context() {
-  return smalloc(11 * SIZEOFUINT64STAR + 16 * SIZEOFUINT64);
+  return smalloc(13 * SIZEOFUINT64STAR + 17 * SIZEOFUINT64);
 }
 
 uint64_t next_context(uint64_t* context)    { return (uint64_t) context; }
@@ -1867,11 +1886,15 @@ uint64_t children(uint64_t* context)        { return (uint64_t) (context + 19); 
 uint64_t context_parent(uint64_t* context)  { return (uint64_t) (context + 20); }
 uint64_t status(uint64_t* context)          { return (uint64_t) (context + 21); }
 uint64_t pid(uint64_t* context)             { return (uint64_t) (context + 22); }
+uint64_t lock_state(uint64_t* context)      { return (uint64_t) (context + 23); }
 
-uint64_t used_list_head(uint64_t* context)   { return (uint64_t) (context + 23); }
-uint64_t free_list_head(uint64_t* context)   { return (uint64_t) (context + 24); }
-uint64_t gcs_in_period(uint64_t* context)    { return (uint64_t) (context + 25); }
-uint64_t use_gc_kernel(uint64_t* context)    { return (uint64_t) (context + 26); }
+uint64_t next_locked_context(uint64_t* context)    { return (uint64_t) (context + 24); }
+uint64_t prev_locked_context(uint64_t* context)    { return (uint64_t) (context + 25); }
+
+uint64_t used_list_head(uint64_t* context)   { return (uint64_t) (context + 26); }
+uint64_t free_list_head(uint64_t* context)   { return (uint64_t) (context + 27); }
+uint64_t gcs_in_period(uint64_t* context)    { return (uint64_t) (context + 28); }
+uint64_t use_gc_kernel(uint64_t* context)    { return (uint64_t) (context + 29); }
 
 uint64_t* get_next_context(uint64_t* context)    { return (uint64_t*) *context; }
 uint64_t* get_prev_context(uint64_t* context)    { return (uint64_t*) *(context + 1); }
@@ -1896,11 +1919,15 @@ uint64_t* get_children(uint64_t* context)        { return (uint64_t*) *(context 
 uint64_t* get_context_parent(uint64_t* context)  { return (uint64_t*) *(context + 20); }
 uint64_t  get_status(uint64_t* context)          { return             *(context + 21); }
 uint64_t  get_pid(uint64_t* context)             { return             *(context + 22); }
+uint64_t  get_lock_state(uint64_t* context)      { return             *(context + 23); }
 
-uint64_t* get_used_list_head(uint64_t* context)   { return (uint64_t*) *(context + 23); }
-uint64_t* get_free_list_head(uint64_t* context)   { return (uint64_t*) *(context + 24); }
-uint64_t  get_gcs_in_period(uint64_t* context)    { return             *(context + 25); }
-uint64_t  get_use_gc_kernel(uint64_t* context)    { return             *(context + 26); }
+uint64_t* get_next_locked_context(uint64_t* context)  { return (uint64_t*) *(context + 24); }
+uint64_t* get_prev_locked_context(uint64_t* context)  { return (uint64_t*) *(context + 25); }
+
+uint64_t* get_used_list_head(uint64_t* context)   { return (uint64_t*) *(context + 26); }
+uint64_t* get_free_list_head(uint64_t* context)   { return (uint64_t*) *(context + 27); }
+uint64_t  get_gcs_in_period(uint64_t* context)    { return             *(context + 28); }
+uint64_t  get_use_gc_kernel(uint64_t* context)    { return             *(context + 29); }
 
 void set_next_context(uint64_t* context, uint64_t* next)              { *context        = (uint64_t) next; }
 void set_prev_context(uint64_t* context, uint64_t* prev)              { *(context + 1)  = (uint64_t) prev; }
@@ -1925,11 +1952,15 @@ void set_children(uint64_t* context, uint64_t* children)              { *(contex
 void set_context_parent(uint64_t* context, uint64_t* context_parent)  { *(context + 20) = (uint64_t) context_parent; }
 void set_status(uint64_t* context, uint64_t status)                   { *(context + 21) = status; }
 void set_pid(uint64_t* context, uint64_t pid)                         { *(context + 22) = pid; }
+void set_lock_state(uint64_t* context, uint64_t lock_state)           { *(context + 23) = lock_state; }
 
-void set_used_list_head(uint64_t* context, uint64_t* used_list_head) { *(context + 23) = (uint64_t) used_list_head; }
-void set_free_list_head(uint64_t* context, uint64_t* free_list_head) { *(context + 24) = (uint64_t) free_list_head; }
-void set_gcs_in_period(uint64_t* context, uint64_t gcs)              { *(context + 25) = gcs; }
-void set_use_gc_kernel(uint64_t* context, uint64_t use)              { *(context + 26) = use; }
+void set_next_locked_context(uint64_t* context, uint64_t* next_locked) { *(context + 24) = (uint64_t) next_locked; }
+void set_prev_locked_context(uint64_t* context, uint64_t* prev_locked) { *(context + 25) = (uint64_t) prev_locked; }
+
+void set_used_list_head(uint64_t* context, uint64_t* used_list_head) { *(context + 26) = (uint64_t) used_list_head; }
+void set_free_list_head(uint64_t* context, uint64_t* free_list_head) { *(context + 27) = (uint64_t) free_list_head; }
+void set_gcs_in_period(uint64_t* context, uint64_t gcs)              { *(context + 28) = gcs; }
+void set_use_gc_kernel(uint64_t* context, uint64_t use)              { *(context + 29) = use; }
 
 
 // -----------------------------------------------------------------
@@ -1970,6 +2001,7 @@ uint64_t* current_context = (uint64_t*) 0; // context currently running
 
 uint64_t* used_contexts = (uint64_t*) 0; // doubly-linked list of used contexts
 uint64_t* free_contexts = (uint64_t*) 0; // singly-linked list of free contexts
+uint64_t* locked_contexts = (uint64_t*) 0; // doubly-linked list of locked contexts
 
 // ------------------------- INITIALIZATION ------------------------
 
@@ -6638,6 +6670,8 @@ void selfie_compile() {
   emit_open();
   emit_fork();
   emit_wait();
+  emit_lock();
+  emit_unlock();
 
   emit_malloc();
 
@@ -8160,6 +8194,79 @@ uint64_t implement_wait(uint64_t* context) {
     print_register_hexadecimal(REG_A0);
     println();
   }
+}
+
+void emit_lock() {
+  create_symbol_table_entry(LIBRARY_TABLE, "lock", 0, PROCEDURE, UINT64_T, 0, binary_length);
+
+  emit_addi(REG_A7, REG_ZR, SYSCALL_LOCK);
+    
+  emit_ecall();
+  
+  emit_jalr(REG_ZR, REG_RA, 0);
+}
+
+void implement_lock(uint64_t* context) {
+  if (debug_syscalls) {
+    print("(lock): ");
+    print_register_hexadecimal(REG_A0);
+    print(" |- ");
+    print_register_hexadecimal(REG_A0);
+  }
+
+  set_next_locked_context(context, locked_contexts);
+  set_prev_locked_context(context, (uint64_t*) 0);
+  set_lock_state(context, LOCK_ACQUIRE);
+
+  if (locked_contexts != (uint64_t*) 0) {
+    set_prev_locked_context(locked_contexts, context);
+    set_lock_state(context, LOCKED);
+  }
+
+  locked_contexts = context;
+
+  if (debug_syscalls) {
+    print(" -> ");
+    print_register_hexadecimal(REG_A0);
+    println();
+  }
+  
+  set_pc(context, get_pc(context) + INSTRUCTIONSIZE);
+}
+
+void emit_unlock() {
+  create_symbol_table_entry(LIBRARY_TABLE, "unlock", 0, PROCEDURE, UINT64_T, 0, binary_length);
+
+  emit_addi(REG_A7, REG_ZR, SYSCALL_UNLOCK);
+    
+  emit_ecall();
+  
+  emit_jalr(REG_ZR, REG_RA, 0);
+}
+
+void implement_unlock(uint64_t* context) {
+  if (debug_syscalls) {
+    print("(unlock): ");
+    print_register_hexadecimal(REG_A0);
+    print(" |- ");
+    print_register_hexadecimal(REG_A0);
+  }
+
+  // print warning if unlock() occures without previous lock()
+  if (locked_contexts == (uint64_t*) 0) {
+    print_line_number("warning", line_number);
+    print("unlock found, without previous lock\n");
+  }
+
+  locked_contexts = delete_locked_context(context, locked_contexts);
+
+  if (debug_syscalls) {
+    print(" -> ");
+    print_register_hexadecimal(REG_A0);
+    println();
+  }
+
+  set_pc(context, get_pc(context) + INSTRUCTIONSIZE);
 }
 
 void copy_page_frame(uint64_t* original_context, uint64_t* copied_context, uint64_t page) {
@@ -10822,6 +10929,40 @@ uint64_t* delete_children(uint64_t* context, uint64_t* from) {
   return from;
 }
 
+uint64_t* delete_locked_context(uint64_t* context, uint64_t* from) {
+  if (get_next_locked_context(context) != (uint64_t*) 0)
+    set_prev_locked_context(get_next_locked_context(context), get_prev_locked_context(context));
+
+  if (get_prev_locked_context(context) != (uint64_t*) 0) {
+    set_next_locked_context(get_prev_locked_context(context), get_next_locked_context(context));
+    set_prev_locked_context(context, (uint64_t*) 0);
+  } else
+    from = get_next_locked_context(context);
+
+  if (from != (uint64_t*) 0) {
+    set_lock_state(from, LOCK_ACQUIRE);
+  }
+
+  return from;
+}
+
+uint64_t is_lock_granted(uint64_t* context, uint64_t* from) {
+  uint64_t is_found;
+  uint64_t* locked_context;
+
+  is_found = 0;
+  locked_context = from;
+
+  while(locked_context != (uint64_t*) 0) {
+    if (context == locked_context)
+      is_found = 1;
+
+    locked_context = get_next_locked_context(locked_context);
+  }
+
+  return is_found;
+}
+
 uint64_t* copy_context(uint64_t* original) {
   uint64_t* context;
   uint64_t r;
@@ -11377,6 +11518,10 @@ uint64_t handle_system_call(uint64_t* context) {
     implement_wait(context);
   else if (a7 == SYSCALL_FORK)
     implement_fork(context);
+  else if (a7 == SYSCALL_LOCK)
+    implement_lock(context);
+  else if (a7 == SYSCALL_UNLOCK)
+    implement_unlock(context);
   else if (a7 == SYSCALL_OPENAT)
     implement_openat(context);
   else if (a7 == SYSCALL_EXIT) {
@@ -11387,6 +11532,11 @@ uint64_t handle_system_call(uint64_t* context) {
       used_contexts = delete_children(context, used_contexts);
       used_contexts = delete_context(context, used_contexts);
 
+      // delete context from locked_contexts, if lock was granted
+      if (is_lock_granted(context, locked_contexts)) {
+        locked_contexts = delete_locked_context(context, locked_contexts);
+      }
+
     // if a child exits and parent is blocked, unblock the parent an delete child and its children
     } else if (get_status(get_context_parent(context)) == BLOCKED) {
       set_status(get_context_parent(context), READY);
@@ -11394,6 +11544,11 @@ uint64_t handle_system_call(uint64_t* context) {
       exit_status = left_shift(exit_status, 8);
       if (is_valid_virtual_address(*(get_regs(get_context_parent(context)) + REG_A0)))
         map_and_store(get_context_parent(context), *(get_regs(get_context_parent(context)) + REG_A0), exit_status);
+      
+      // delete context from locked_contexts, if lock was granted
+      if (is_lock_granted(context, locked_contexts)) {
+        locked_contexts = delete_locked_context(context, locked_contexts);
+      }
 
       used_contexts = delete_children(context, used_contexts);
       used_contexts = delete_context(context, used_contexts);
@@ -11405,6 +11560,11 @@ uint64_t handle_system_call(uint64_t* context) {
       exit_status = left_shift(exit_status, 8);
       if (is_valid_virtual_address(*(get_regs(get_context_parent(context)) + REG_A0)))
         map_and_store(get_context_parent(context), *(get_regs(get_context_parent(context)) + REG_A0), exit_status);
+      
+      // delete context from locked_contexts, if lock was granted
+      if (is_lock_granted(context, locked_contexts)) {
+        locked_contexts = delete_locked_context(context, locked_contexts);
+      }
 
       used_contexts = delete_children(context, used_contexts);
     }
@@ -11490,12 +11650,11 @@ uint64_t handle_exception(uint64_t* context) {
   }
 }
 
-
-
 uint64_t mipster(uint64_t* to_context) {
   uint64_t timeout;
   uint64_t* from_context;
   uint64_t is_found;
+  uint64_t found_lock_acquired;
 
   print("mipster\n");
   printf1("%s: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n", selfie_name);
@@ -11514,18 +11673,34 @@ uint64_t mipster(uint64_t* to_context) {
       return get_exit_code(from_context);
 		
     } else {
-      is_found = 0;
-      to_context = used_contexts;
+      if (get_next_context(from_context) != (uint64_t*) 0) {
+        if (locked_contexts != (uint64_t*) 0) {
+          to_context = locked_contexts;
+          found_lock_acquired = 0;
 
-      while (is_found == 0) {
-        if (get_status(to_context) == READY) {
-          if (get_virtual_context(to_context) == (uint64_t*) 0) {
-            is_found = 1;
+          while(found_lock_acquired == 0) {
+            if (get_lock_state(to_context) == LOCK_ACQUIRE)
+              found_lock_acquired = 1;
+            else
+              to_context = get_next_locked_context(to_context);
+          }
+        } else
+          to_context = get_next_context(from_context);
+
+      } else {
+        is_found = 0;
+        to_context = used_contexts;
+
+        while (is_found == 0) {
+          if (get_status(to_context) == READY) {
+            if (get_virtual_context(to_context) == (uint64_t*) 0) {
+              is_found = 1;
 						
+            } else
+              to_context = get_next_context(to_context);
           } else
             to_context = get_next_context(to_context);
-        } else
-          to_context = get_next_context(to_context);
+        }
       }
 			
       timeout = TIMESLICE;
@@ -11535,7 +11710,7 @@ uint64_t mipster(uint64_t* to_context) {
 
 uint64_t hypster(uint64_t* to_context) {
   uint64_t* from_context;
-  uint64_t is_found;
+  uint64_t found_lock_acquired;
 
   print("hypster\n");
   printf1("%s: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n", selfie_name);
@@ -11547,25 +11722,23 @@ uint64_t hypster(uint64_t* to_context) {
     if (handle_exception(from_context) == EXIT)
       return get_exit_code(from_context);
     else {
-      if (get_next_context(from_context) == (uint64_t*) 0) {
-        to_context = used_contexts;
-      } else {
-        to_context = get_next_context(from_context);  
-      }
+      if (get_next_context(from_context) != (uint64_t*) 0) {
+        if (locked_contexts != (uint64_t*) 0) {
+          to_context = locked_contexts;
+          found_lock_acquired = 0;
 
-      is_found = 0;
-
-      while (is_found == 0) {
-        if (get_status(to_context) == READY) {
-          if (get_virtual_context(to_context) == (uint64_t*) 0) {
-            is_found = 1;
-						
-          } else {
-            to_context = get_next_context(to_context);
+          while(found_lock_acquired == 0) {
+            if (get_lock_state(to_context) == LOCK_ACQUIRE)
+              found_lock_acquired = 1;
+            else
+              to_context = get_next_locked_context(to_context);
           }
-        } else
-          to_context = get_next_context(to_context);
+        } else 
+          to_context = get_next_context(from_context);
+      } else {
+        to_context = used_contexts;  
       }
+
     }
   }
 }
