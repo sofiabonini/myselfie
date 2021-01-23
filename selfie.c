@@ -1129,6 +1129,15 @@ void implement_lock(uint64_t* context);
 void emit_unlock();
 void implement_unlock(uint64_t* context);
 
+void emit_pthread_create();
+void implement_pthread_create(uint64_t* context);
+
+void emit_pthread_join();
+uint64_t implement_pthread_join(uint64_t* context);
+
+void emit_pthread_exit();
+void implement_pthread_exit(uint64_t* context);
+
 void copy_page_frame(uint64_t* original_context, uint64_t* copied_context, uint64_t page);
 
 void     emit_open();
@@ -1157,6 +1166,9 @@ uint64_t SYSCALL_FORK   = 215;
 uint64_t SYSCALL_WAIT   = 216;
 uint64_t SYSCALL_LOCK   = 217;
 uint64_t SYSCALL_UNLOCK = 218;
+uint64_t SYSCALL_PTHREAD_CREATE = 219;
+uint64_t SYSCALL_PTHREAD_JOIN   = 220;
+uint64_t SYSCALL_PTHREAD_EXIT   = 221;
 
 /* DIRFD_AT_FDCWD corresponds to AT_FDCWD in fcntl.h and
    is passed as first argument of the openat system call
@@ -6672,6 +6684,9 @@ void selfie_compile() {
   emit_wait();
   emit_lock();
   emit_unlock();
+  emit_pthread_create();
+  emit_pthread_join();
+  emit_pthread_exit();
 
   emit_malloc();
 
@@ -8267,6 +8282,166 @@ void implement_unlock(uint64_t* context) {
   }
 
   set_pc(context, get_pc(context) + INSTRUCTIONSIZE);
+}
+
+void emit_pthread_create() {
+  create_symbol_table_entry(LIBRARY_TABLE, "pthread_create", 0, PROCEDURE, UINT64_T, 0, binary_length);
+  
+  emit_addi(REG_A7, REG_ZR, SYSCALL_PTHREAD_CREATE);
+  
+  emit_ecall();
+  
+  emit_jalr(REG_ZR, REG_RA, 0);
+}
+
+void implement_pthread_create (uint64_t* context) {
+  uint64_t* copied_context;
+  uint64_t count;
+
+  if (debug_syscalls) {
+   print("(pthread_create): ");
+   print_register_hexadecimal(REG_A0);
+   print(" |- ");
+   print_register_hexadecimal(REG_A0);
+  }
+
+  copied_context = copy_context(context);
+
+  // shallow-copy
+  count = get_page_of_virtual_address(get_code_seg_start(context));
+  
+  while(count < get_page_of_virtual_address(get_program_break(copied_context) - WORDSIZE) + 1) {
+    if (is_page_mapped(get_pt(context), count)) {
+	      map_page(copied_context, count, get_frame_for_page(get_pt(context), count));
+	    }
+    count = count + 1;
+  }
+
+  // deep-copy
+  count = get_page_of_virtual_address(*(get_regs(context) + REG_SP));
+    
+  while(count < NUMBEROFPAGES) {
+    copy_page_frame(context, copied_context, count);
+    count = count + 1;
+  }
+
+  if (debug_syscalls) {
+    print(" -> ");
+    print_register_hexadecimal(REG_A0);
+    println();
+  }
+}
+
+void emit_pthread_join() {
+  create_symbol_table_entry(LIBRARY_TABLE, "pthread_join", 0, PROCEDURE, UINT64_T, 0, binary_length);
+
+  emit_ld(REG_A0, REG_SP, 0);
+  emit_addi(REG_SP, REG_SP, WORDSIZE);
+
+  emit_addi(REG_A7, REG_ZR, SYSCALL_PTHREAD_JOIN);
+    
+  emit_ecall();
+  
+  emit_jalr(REG_ZR, REG_RA, 0);
+}
+
+uint64_t implement_pthread_join(uint64_t* context) {
+  uint64_t* child;
+  uint64_t has_no_children;
+  uint64_t vaddr;
+  uint64_t exit_status;
+  
+  if (debug_syscalls) {
+   print("(pthread_join): ");
+   print_register_hexadecimal(REG_A0);
+   print(" |- ");
+   print_register_hexadecimal(REG_A0);
+  }
+	
+  child = used_contexts;
+  vaddr = *(get_regs(context) + REG_A0);
+  has_no_children = 1;
+  set_pc(context, get_pc(context) + INSTRUCTIONSIZE); 
+
+  if (vaddr != 0)
+    if (is_valid_data_stack_heap_address(context, vaddr) == 0) {
+      *(get_regs(context) + REG_A0) = -1;
+      return -1;
+    }  
+  
+  // look if a child is a ZOMBIE and then return from wait
+  while (child != (uint64_t*) 0) {			
+    if (get_context_parent(child) == context) {
+      has_no_children = 0;
+      exit_status = get_exit_code(child);
+      map_and_store(context, *(get_regs(context) + REG_A0), exit_status);
+			
+      if (get_status(child) == ZOMBIE) {
+        *(get_regs(context) + REG_A0) = get_pid(child);
+        used_contexts = delete_context(child, used_contexts);
+        return get_pid(child);
+      }
+    }
+		
+    child = get_next_context(child);
+  }
+
+  // pid = -1, if parent calls wait, but has no children
+  if (has_no_children == 1) {
+    *(get_regs(context) + REG_A0) = -1;
+    return -1;
+		
+  // if no child has exited, set parent to BLOCKED		
+  } else {
+    set_status(context, BLOCKED);  
+    *(get_regs(context) + REG_A0) = 0;
+    return 0;
+  }
+
+  return 0;
+   
+  if (debug_syscalls) {
+    print(" -> ");
+    print_register_hexadecimal(REG_A0);
+    println();
+  }
+}
+
+void emit_pthread_exit() {
+  create_symbol_table_entry(LIBRARY_TABLE, "pthread_exit", 0, PROCEDURE, VOID_T, 0, binary_length);
+
+  // load signed 32-bit integer exit code
+  emit_ld(REG_A0, REG_SP, 0);
+
+  // remove the exit code from the stack
+  emit_addi(REG_SP, REG_SP, WORDSIZE);
+
+  // load the correct syscall number and invoke syscall
+  emit_addi(REG_A7, REG_ZR, SYSCALL_PTHREAD_EXIT);
+
+  emit_ecall();
+
+  // never returns here
+}
+
+void implement_pthread_exit(uint64_t* context) {
+  // parameter;
+  uint64_t signed_int_exit_code;
+
+  if (debug_syscalls) {
+    print("(exit): ");
+    print_register_hexadecimal(REG_A0);
+    print(" |- ->\n");
+  }
+
+  signed_int_exit_code = *(get_regs(context) + REG_A0);
+
+  set_exit_code(context, sign_shrink(signed_int_exit_code, SYSCALL_BITWIDTH));
+
+  printf1("%s: <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n", selfie_name);
+  printf3("%s: %s exiting with exit code %d\n", selfie_name,
+    get_name(context),
+    (char*) sign_extend(get_exit_code(context), SYSCALL_BITWIDTH));
 }
 
 void copy_page_frame(uint64_t* original_context, uint64_t* copied_context, uint64_t page) {
@@ -11522,6 +11697,10 @@ uint64_t handle_system_call(uint64_t* context) {
     implement_lock(context);
   else if (a7 == SYSCALL_UNLOCK)
     implement_unlock(context);
+  else if (a7 == SYSCALL_PTHREAD_CREATE)
+    implement_pthread_create(context);
+  else if (a7 == SYSCALL_PTHREAD_JOIN)
+    implement_pthread_join(context);
   else if (a7 == SYSCALL_OPENAT)
     implement_openat(context);
   else if (a7 == SYSCALL_EXIT) {
@@ -11575,6 +11754,55 @@ uint64_t handle_system_call(uint64_t* context) {
     else
       return DONOTEXIT;
 	
+  } else if (a7 == SYSCALL_PTHREAD_EXIT) {
+    implement_pthread_exit(context);
+	
+    // if context has no parent, delete it and all its children
+    if (get_context_parent(context) == (uint64_t*) 0) {	
+      used_contexts = delete_children(context, used_contexts);
+      used_contexts = delete_context(context, used_contexts);
+
+      // delete context from locked_contexts, if lock was granted
+      if (is_lock_granted(context, locked_contexts)) {
+        locked_contexts = delete_locked_context(context, locked_contexts);
+      }
+
+    // if a child exits and parent is blocked, unblock the parent an delete child and its children
+    } else if (get_status(get_context_parent(context)) == BLOCKED) {
+      set_status(get_context_parent(context), READY);
+      exit_status = get_exit_code(context);
+      if (is_valid_virtual_address(*(get_regs(get_context_parent(context)) + REG_A0)))
+        map_and_store(get_context_parent(context), *(get_regs(get_context_parent(context)) + REG_A0), exit_status);
+      
+      // delete context from locked_contexts, if lock was granted
+      if (is_lock_granted(context, locked_contexts)) {
+        locked_contexts = delete_locked_context(context, locked_contexts);
+      }
+
+      used_contexts = delete_children(context, used_contexts);
+      used_contexts = delete_context(context, used_contexts);
+	  
+    // if child exits before parent calls wait, set child to zombie and delete its children
+    } else {
+      set_status(context, ZOMBIE);
+      exit_status = get_exit_code(context);
+      if (is_valid_virtual_address(*(get_regs(get_context_parent(context)) + REG_A0)))
+        map_and_store(get_context_parent(context), *(get_regs(get_context_parent(context)) + REG_A0), exit_status);
+      
+      // delete context from locked_contexts, if lock was granted
+      if (is_lock_granted(context, locked_contexts)) {
+        locked_contexts = delete_locked_context(context, locked_contexts);
+      }
+
+      used_contexts = delete_children(context, used_contexts);
+    }
+ 
+    // exit only if all contexts have exited
+    if (used_contexts == (uint64_t*) 0)
+      return EXIT;
+    else
+      return DONOTEXIT; 
+
   } else {
     printf2("%s: unknown system call %u\n", selfie_name, (char*) a7);
 
